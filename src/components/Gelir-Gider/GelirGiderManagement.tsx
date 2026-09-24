@@ -48,7 +48,7 @@ import {
   Briefcase,
   Tag,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -379,7 +379,7 @@ export const GelirGiderManagement: React.FC = () => {
     setIsNewModalOpen(true);
   };
 
-  // Excel İhracı (XLSX)
+  // CSV dışa aktarımı
   const handleExportExcel = () => {
     try {
       const exportData = filteredItems.map(i => ({
@@ -404,24 +404,12 @@ export const GelirGiderManagement: React.FC = () => {
         'Açıklama': i.description || '-',
       }));
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Gelir_Gider_Listesi');
-
-      // Kolon genişliklerini otomatik ayarla
-      ws['!cols'] = [
-        { wch: 15 }, { wch: 18 }, { wch: 12 }, { wch: 22 }, { wch: 10 },
-        { wch: 28 }, { wch: 32 }, { wch: 28 }, { wch: 24 }, { wch: 16 },
-        { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 },
-        { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 40 },
-      ];
-
-      XLSX.writeFile(wb, `FX_Gelir_Gider_Raporu_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      setFeedbackMessage('Excel dosyası başarıyla indirildi.');
+      downloadCsv(`FX_Gelir_Gider_Raporu_${new Date().toISOString().slice(0, 10)}.csv`, exportData);
+      setFeedbackMessage('CSV dosyası başarıyla indirildi.');
       setTimeout(() => setFeedbackMessage(null), 3500);
     } catch (e) {
       console.error(e);
-      alert('Excel dosyası oluşturulurken hata meydana geldi.');
+      alert('CSV dosyası oluşturulurken hata meydana geldi.');
     }
   };
 
@@ -1074,10 +1062,10 @@ export const GelirGiderManagement: React.FC = () => {
               type="button"
               onClick={handleExportExcel}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-              title="Excel (XLSX) formatında dışa aktar"
+              title="CSV formatında dışa aktar"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">Excel</span>
+              <span className="hidden sm:inline">CSV</span>
             </button>
 
             <button

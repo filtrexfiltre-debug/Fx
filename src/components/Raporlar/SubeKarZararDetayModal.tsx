@@ -28,7 +28,7 @@ import {
   HelpCircle,
   FileText,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsvSections } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { RevenueExpenseItem, Branch } from '../../types/fx';
@@ -248,19 +248,17 @@ export const SubeKarZararDetayModal: React.FC<SubeKarZararDetayModalProps> = ({
         'KKEG Tutarı': c.kkegAmount || 0,
       }));
 
-      const wb = XLSX.utils.book_new();
-      const wsPnL = XLSX.utils.json_to_sheet(pnlData);
-      const wsInc = XLSX.utils.json_to_sheet(incData);
-      const wsExp = XLSX.utils.json_to_sheet(expData);
-
-      XLSX.utils.book_append_sheet(wb, wsPnL, 'Ozet_Kar_Zarar');
-      XLSX.utils.book_append_sheet(wb, wsInc, 'Gelir_Kalemleri');
-      XLSX.utils.book_append_sheet(wb, wsExp, 'Gider_Kalemleri');
-
-      XLSX.writeFile(wb, `${branch.name.replace(/\s+/g, '_')}_Kar_Zarar_Detay_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      downloadCsvSections(
+        `${branch.name.replace(/\s+/g, '_')}_Kar_Zarar_Detay_${new Date().toISOString().slice(0, 10)}.csv`,
+        [
+          { title: 'Ozet_Kar_Zarar', rows: pnlData },
+          { title: 'Gelir_Kalemleri', rows: incData },
+          { title: 'Gider_Kalemleri', rows: expData },
+        ],
+      );
     } catch (e) {
       console.error(e);
-      alert('Excel raporu hazırlanırken bir hata oluştu.');
+      alert('CSV raporu hazırlanırken bir hata oluştu.');
     }
   };
 
@@ -376,10 +374,10 @@ export const SubeKarZararDetayModal: React.FC<SubeKarZararDetayModalProps> = ({
               type="button"
               onClick={handleExportExcel}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-              title="Excel Raporu İndir"
+              title="CSV raporu indir"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden md:inline">Excel</span>
+              <span className="hidden md:inline">CSV</span>
             </button>
 
             <button

@@ -49,7 +49,7 @@ import {
   FilePieChart,
   Columns3,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Contact, Branch, ContactType, Employee } from '../../types/fx';
@@ -1011,10 +1011,7 @@ export const MusteriListesi: React.FC = () => {
       'Bakiye': c.currentBalance,
       'Döviz': c.currency || 'TRY',
     }));
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Cari Listesi');
-    XLSX.writeFile(wb, `FX_Cari_Listesi_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    downloadCsv(`FX_Cari_Listesi_${new Date().toISOString().slice(0, 10)}.csv`, exportData);
   };
 
   const handleExportPdf = () => {
@@ -1058,7 +1055,7 @@ export const MusteriListesi: React.FC = () => {
   const handleDownloadCariCode = async () => {
     try {
       scheduleFeedback('Cari modülü kaynak kodları hazırlanıyor...', 2000);
-      const sourceUrl = `${window.location.origin}/src/components/MusteriListesi.tsx`;
+      const sourceUrl = `${window.location.origin}/src/components/Cari/MusteriListesi.tsx`;
       const response = await fetch(sourceUrl, { cache: 'no-store' });
       if (!response.ok) throw new Error('Kaynak dosyası erişilemedi');
 
@@ -1290,7 +1287,7 @@ export const MusteriListesi: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 rounded-md transition-colors"
             >
               <Download className="w-3.5 h-3.5 text-blue-600" />
-              Excel
+              CSV
             </button>
 
             <button

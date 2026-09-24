@@ -16,11 +16,11 @@ import {
   Download,
   Filter,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { StockMovement, Product, Warehouse } from '../../types/fx';
-import { api } from '../../services/api';
+import { api, branchContext } from '../../services/api';
 import { DataTable } from '../common/DataTable';
 
 
@@ -93,6 +93,7 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
 
   useEffect(() => {
     loadData();
+    return branchContext.subscribe(loadData);
   }, []);
 
   // Normal Hareket Ekleme Modalını Aç
@@ -392,8 +393,8 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
         (typeFilter === 'TRANSFERS' && (m.movementType === 'TRANSFER_IN' || m.movementType === 'TRANSFER_OUT'));
       const matchWh = warehouseFilter === 'ALL' || m.warehouseId === warehouseFilter;
       const matchQuick = !quickFilterText ||
-        m.productSku.toLowerCase().includes(quickFilterText.toLowerCase()) ||
-        m.productName.toLowerCase().includes(quickFilterText.toLowerCase()) ||
+        (m.productSku || '').toLowerCase().includes(quickFilterText.toLowerCase()) ||
+        (m.productName || '').toLowerCase().includes(quickFilterText.toLowerCase()) ||
         (m.documentNumber && m.documentNumber.toLowerCase().includes(quickFilterText.toLowerCase())) ||
         (m.contactTitle && m.contactTitle.toLowerCase().includes(quickFilterText.toLowerCase()));
       return matchType && matchWh && matchQuick;
@@ -414,10 +415,7 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
       'Cari Ünvan': m.contactTitle || '',
       'Notlar': m.notes || '',
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Stok_Hareketleri');
-    XLSX.writeFile(wb, `Stok_Hareketleri_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    downloadCsv(`Stok_Hareketleri_${new Date().toISOString().slice(0, 10)}.csv`, data);
   };
 
   const exportToPdf = () => {
@@ -429,9 +427,9 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
 
     const body = filteredMovements.map(m => [
       new Date(m.movementDate).toLocaleDateString('tr-TR'),
-      m.productSku,
-      m.productName,
-      m.warehouseName,
+      m.productSku || '',
+      m.productName || '',
+      m.warehouseName || '',
       m.movementType,
       m.quantity.toString(),
       `₺${m.unitPrice.toFixed(2)}`,
@@ -513,7 +511,7 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Excel</span>
+              <span>CSV</span>
             </button>
 
             <button

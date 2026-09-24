@@ -38,7 +38,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Product, Warehouse } from '../../types/fx';
@@ -1368,10 +1368,7 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
         'Açıklama & Notlar': p.descriptionNotes || '',
       };
     });
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Urun_Katalogu_Tam_Liste');
-    XLSX.writeFile(wb, `Urun_Katalogu_Detayli_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    downloadCsv(`Urun_Katalogu_Detayli_${new Date().toISOString().slice(0, 10)}.csv`, data);
   };
 
   // PDF Dışa Aktarma
@@ -1528,10 +1525,10 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
             <button
               onClick={exportToExcel}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
-              title="Excel İndir"
+              title="CSV indir"
             >
               <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Excel</span>
+              <span>CSV</span>
             </button>
 
             <button

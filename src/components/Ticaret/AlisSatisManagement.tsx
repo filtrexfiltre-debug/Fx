@@ -93,6 +93,10 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
     loadData();
   }, [selectedBranchFilter]);
 
+  useEffect(() => {
+    setSelectedBranchFilter(currentBranchId || 'all');
+  }, [currentBranchId]);
+
   const currentBranchName = useMemo(() => {
     if (selectedBranchFilter === 'all') return 'Tüm Şubeler Konsolide';
     const found = branches.find((b) => b.id === selectedBranchFilter);

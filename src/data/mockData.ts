@@ -1277,6 +1277,7 @@ export const INITIAL_WAREHOUSES: Warehouse[] = [
   {
     id: 'wh-1',
     tenantId: CURRENT_TENANT.id,
+    branchId: 'b1111111-1111-1111-1111-111111111111',
     warehouseCode: 'MRK-DP1',
     warehouseType: 'Merkez',
     name: 'Merkez Ana Lojistik Deposu',
@@ -1289,6 +1290,7 @@ export const INITIAL_WAREHOUSES: Warehouse[] = [
   {
     id: 'wh-2',
     tenantId: CURRENT_TENANT.id,
+    branchId: 'b2222222-2222-2222-2222-222222222222',
     warehouseCode: 'KDK-DP2',
     warehouseType: 'Şube Deposu',
     name: 'Kadıköy Hızlı Dağıtım Deposu',
@@ -1301,6 +1303,7 @@ export const INITIAL_WAREHOUSES: Warehouse[] = [
   {
     id: 'wh-3',
     tenantId: CURRENT_TENANT.id,
+    branchId: 'b3333333-3333-3333-3333-333333333333',
     warehouseCode: 'ANK-DP3',
     warehouseType: 'Soğuk Hava',
     name: 'İç Anadolu İklimlendirmeli Soğuk Depo',
@@ -1313,6 +1316,7 @@ export const INITIAL_WAREHOUSES: Warehouse[] = [
   {
     id: 'wh-4',
     tenantId: CURRENT_TENANT.id,
+    branchId: 'b4444444-4444-4444-4444-444444444444',
     warehouseCode: 'IZM-DP4',
     warehouseType: 'Sanal Depo',
     name: 'Ege Bölgesi Sanal & Transit Depo',

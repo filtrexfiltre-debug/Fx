@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "node scripts/dev.cjs",
+    "dev:vite": "vite --port=3000 --host=0.0.0.0",
+    "api": "node server.cjs",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
@@ -23,8 +25,7 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "turkey-location-data": "^1.1.1",
-    "turkey-neighbourhoods": "^4.0.3",
-    "xlsx": "^0.18.5"
+    "turkey-neighbourhoods": "^4.0.3"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

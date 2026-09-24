@@ -29,7 +29,7 @@ import type {
   ICellRendererParams,
   RowSelectionOptions,
 } from 'ag-grid-community';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { TaxAllocation, Branch } from '../../types/fx';
@@ -245,10 +245,7 @@ export const VergiDagitim: React.FC = () => {
       'P&L Etkisi (₺)': -item.allocatedAmount,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Vergi_Dagitim_Matrisi');
-    XLSX.writeFile(wb, `Vergi_Dagitim_${period.replace('/', '_')}.xlsx`);
+    downloadCsv(`Vergi_Dagitim_${period.replace('/', '_')}.csv`, data);
   };
 
   const handleExportPdf = () => {
@@ -417,10 +414,10 @@ export const VergiDagitim: React.FC = () => {
               type="button"
               onClick={handleExportExcel}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 rounded-md transition-colors cursor-pointer"
-              title="Excel formatında dışa aktar"
+              title="CSV formatında dışa aktar"
             >
               <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Excel</span>
+              <span>CSV</span>
             </button>
 
             <button

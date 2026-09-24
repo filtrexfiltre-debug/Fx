@@ -17,12 +17,12 @@ import {
   Boxes,
   ShieldCheck,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Warehouse, WarehouseStock } from '../../types/fx';
 import { GridApi } from 'ag-grid-community';
-import { api } from '../../services/api';
+import { api, branchContext } from '../../services/api';
 import { DataTable } from '../common/DataTable';
 
 
@@ -78,6 +78,7 @@ export const DepolarTablosu: React.FC<DepolarTablosuProps> = ({ onRefreshStats }
 
   useEffect(() => {
     loadData();
+    return branchContext.subscribe(loadData);
   }, []);
 
   const handleOpenCreateModal = () => {
@@ -297,10 +298,7 @@ export const DepolarTablosu: React.FC<DepolarTablosuProps> = ({ onRefreshStats }
       'Durum': w.status === 'ACTIVE' ? 'Aktif' : w.status === 'MAINTENANCE' ? 'Bakımda' : 'Pasif',
       'Adres': w.addressLine || '',
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Depolar');
-    XLSX.writeFile(wb, `Depolar_Listesi_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    downloadCsv(`Depolar_Listesi_${new Date().toISOString().slice(0, 10)}.csv`, data);
   };
 
   const exportToPdf = () => {
@@ -389,7 +387,7 @@ export const DepolarTablosu: React.FC<DepolarTablosuProps> = ({ onRefreshStats }
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Excel</span>
+              <span>CSV</span>
             </button>
 
             <button

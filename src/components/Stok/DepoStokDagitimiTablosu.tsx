@@ -26,11 +26,11 @@ import {
   Layers,
   Coins,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { WarehouseStock, Warehouse } from '../../types/fx';
-import { api } from '../../services/api';
+import { api, branchContext } from '../../services/api';
 import { AgGridColumnSidebar, AgGridSidebarToggleBtn } from '../common/AgGridColumnSidebar';
 
 
@@ -76,6 +76,7 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
 
   useEffect(() => {
     loadData();
+    return branchContext.subscribe(loadData);
   }, []);
 
   const handleOpenEditCritical = (stock: WarehouseStock) => {
@@ -220,9 +221,9 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
       const matchWh = selectedWarehouseFilter === 'ALL' || s.warehouseId === selectedWarehouseFilter;
       const matchCritical = !onlyCriticalFilter || s.totalQuantity <= s.criticalStockLevel;
       const matchQuick = !quickFilterText ||
-        s.warehouseName.toLowerCase().includes(quickFilterText.toLowerCase()) ||
-        s.productSku.toLowerCase().includes(quickFilterText.toLowerCase()) ||
-        s.productName.toLowerCase().includes(quickFilterText.toLowerCase());
+        (s.warehouseName || '').toLowerCase().includes(quickFilterText.toLowerCase()) ||
+        (s.productSku || '').toLowerCase().includes(quickFilterText.toLowerCase()) ||
+        (s.productName || '').toLowerCase().includes(quickFilterText.toLowerCase());
       return matchWh && matchCritical && matchQuick;
     });
   }, [stocks, selectedWarehouseFilter, onlyCriticalFilter, quickFilterText]);
@@ -248,10 +249,7 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
       'Güncel Satış Değeri (TRY)': s.totalCurrentValue,
       'Kritik Durum': s.totalQuantity <= s.criticalStockLevel ? 'KRİTİK' : 'NORMAL',
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Depo_Stok_Dagitimi');
-    XLSX.writeFile(wb, `Depo_Stok_Dagitimi_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    downloadCsv(`Depo_Stok_Dagitimi_${new Date().toISOString().slice(0, 10)}.csv`, data);
   };
 
   const exportToPdf = () => {
@@ -266,9 +264,9 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
     );
 
     const body = filteredStocks.map(s => [
-      s.warehouseName,
-      s.productSku,
-      s.productName,
+      s.warehouseName || '',
+      s.productSku || '',
+      s.productName || '',
       `${s.criticalStockLevel} ${s.unitType || ''}`,
       `${s.totalQuantity} ${s.unitType || ''}`,
       `₺${s.totalCostValue.toFixed(2)}`,
@@ -429,7 +427,7 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Excel</span>
+              <span>CSV</span>
             </button>
 
             <button

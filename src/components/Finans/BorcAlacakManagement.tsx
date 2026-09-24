@@ -44,7 +44,7 @@ import {
   HelpCircle,
   ChevronRight,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -282,10 +282,7 @@ export const BorcAlacakManagement: React.FC<BorcAlacakManagementProps> = ({
       Açıklama: item.description,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Borclar_Alacaklar');
-    XLSX.writeFile(wb, `Borclar_Alacaklar_Raporu_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    downloadCsv(`Borclar_Alacaklar_Raporu_${new Date().toISOString().slice(0, 10)}.csv`, exportData);
   };
 
   // PDF İndirme
@@ -769,10 +766,10 @@ export const BorcAlacakManagement: React.FC<BorcAlacakManagementProps> = ({
             <button
               onClick={exportToExcel}
               className="flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg border border-stone-200 transition-colors"
-              title="Excel İndir"
+              title="CSV indir"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-              <span className="hidden sm:inline">Excel</span>
+              <span className="hidden sm:inline">CSV</span>
             </button>
 
             <button

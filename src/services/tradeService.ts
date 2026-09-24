@@ -8,8 +8,9 @@ import {
   GibDirection,
   GibCommercialResponse,
 } from '../types/trade';
-import { fxApi } from './api';
+import { fxApi, branchContext } from './api';
 import { DebtCreditItem } from '../types/fx';
+import { BRANCHES, CURRENT_TENANT } from '../data/mockData';
 
 const STORAGE_KEYS = {
   OFFERS: 'fx_trade_offers_list',
@@ -947,17 +948,21 @@ class TradeService {
   }
 
   // GELEN E-FATURAYI SİSTEME "ALIŞ FATURASI VE STOK" OLARAK AKTAR (Sihirli Entegratör Butonu)
-  importGibInvoiceToErp(gibInvoiceId: string): TradeInvoice | null {
+  async importGibInvoiceToErp(gibInvoiceId: string): Promise<TradeInvoice | null> {
     const list = this.getGibInvoices();
     const gibInv = list.find((i) => i.id === gibInvoiceId);
     if (!gibInv || gibInv.isImportedToErp) return null;
 
+    const selectedBranchId = branchContext.getSelectedBranchId();
+    const targetBranchId = selectedBranchId === 'all' ? BRANCHES[0].id : selectedBranchId;
+    const targetBranch = BRANCHES.find((branch) => branch.id === targetBranchId) || BRANCHES[0];
+
     // Alış Faturası Oluştur
     const newInvoice: TradeInvoice = {
       id: `inv-${Date.now()}`,
-      tenantId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      branchId: 'b1111111-1111-1111-1111-111111111111',
-      branchName: 'Merkez Şube (Genel Müdürlük - Levent)',
+      tenantId: CURRENT_TENANT.id,
+      branchId: targetBranch.id,
+      branchName: targetBranch.name,
       invoiceNumber: gibInv.invoiceNumber,
       direction: 'ALIS',
       scenario: gibInv.scenario === 'TICARI' ? 'TICARI' : 'TEMEL',
@@ -990,6 +995,32 @@ class TradeService {
     const invoices = this.getInvoices();
     this.saveInvoices([newInvoice, ...invoices]);
 
+    const warehouseResponse = await fxApi.getWarehouses();
+    const targetWarehouse = warehouseResponse.data.find((warehouse) => warehouse.branchId === targetBranch.id) || warehouseResponse.data[0];
+    if (targetWarehouse) {
+      const productsResponse = await fxApi.getProducts();
+      for (const item of gibInv.items) {
+        const product = item.productId
+          ? productsResponse.data.find((candidate) => candidate.id === item.productId)
+          : productsResponse.data.find((candidate) => candidate.skuCode === item.skuCode);
+        if (!product) continue;
+
+        await fxApi.createStockMovement({
+          tenantId: CURRENT_TENANT.id,
+          movementDate: gibInv.issueDate,
+          productId: product.id,
+          warehouseId: targetWarehouse.id,
+          movementType: 'IN',
+          quantity: item.quantity,
+          unitPrice: item.unitPrice || product.netPurchaseCost,
+          totalAmount: item.quantity * (item.unitPrice || product.netPurchaseCost),
+          documentNumber: gibInv.invoiceNumber,
+          contactTitle: gibInv.senderTitle,
+          notes: `GİB ${gibInv.invoiceNumber} aktarımı`,
+        });
+      }
+    }
+
     // GİB faturasını içeri alındı olarak işaretle
     gibInv.isImportedToErp = true;
     gibInv.importedInvoiceId = newInvoice.id;
@@ -1019,7 +1050,7 @@ class TradeService {
         category: 'GİB İthalat / Hammadde',
         payments: [],
       };
-      fxApi.createDebtCredit(debtCreditItem);
+      await fxApi.createDebtCredit(debtCreditItem);
     } catch (e) {
       console.warn('GİB aktarım borç kaydı hatası:', e);
     }

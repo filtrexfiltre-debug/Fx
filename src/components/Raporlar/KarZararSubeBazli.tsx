@@ -21,7 +21,7 @@ import {
   BarChart3,
   ExternalLink,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { RevenueExpenseItem, Branch } from '../../types/fx';
@@ -230,20 +230,10 @@ export const KarZararSubeBazli: React.FC<KarZararSubeBazliProps> = ({
         'En Yüksek Harcama Kalemi': '-',
       });
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Sube_Bazli_Kar_Zarar');
-
-      ws['!cols'] = [
-        { wch: 32 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
-        { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 18 },
-        { wch: 22 }, { wch: 16 }, { wch: 26 }, { wch: 26 },
-      ];
-
-      XLSX.writeFile(wb, `FX_Sube_Kar_Zarar_Raporu_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      downloadCsv(`FX_Sube_Kar_Zarar_Raporu_${new Date().toISOString().slice(0, 10)}.csv`, exportData);
     } catch (e) {
       console.error(e);
-      alert('Excel raporu oluşturulurken hata meydana geldi.');
+      alert('CSV raporu oluşturulurken hata meydana geldi.');
     }
   };
 
@@ -449,10 +439,10 @@ export const KarZararSubeBazli: React.FC<KarZararSubeBazliProps> = ({
             type="button"
             onClick={handleExportExcel}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-            title="Excel olarak indir"
+            title="CSV olarak indir"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Excel</span>
+            <span className="hidden sm:inline">CSV</span>
           </button>
 
           <button

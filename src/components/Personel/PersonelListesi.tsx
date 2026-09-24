@@ -44,7 +44,7 @@ import {
   Pencil,
   Copy,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Employee, EmployeeAddress, Branch } from '../../types/fx';
@@ -1030,11 +1030,8 @@ export const PersonelListesi: React.FC = () => {
       'IBAN': e.iban || '-',
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Personel Listesi');
-    XLSX.writeFile(wb, `FX_Personel_Listesi_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    showFeedback('success', 'Excel dosyası başarıyla indirildi.');
+    downloadCsv(`FX_Personel_Listesi_${new Date().toISOString().slice(0, 10)}.csv`, exportData);
+    showFeedback('success', 'CSV dosyası başarıyla indirildi.');
   };
 
   const handleExportPdf = () => {
@@ -1262,7 +1259,7 @@ export const PersonelListesi: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 rounded-md transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-blue-600" />
-              Excel
+              CSV
             </button>
 
             <button

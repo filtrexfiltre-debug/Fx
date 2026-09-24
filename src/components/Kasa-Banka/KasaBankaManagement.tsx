@@ -38,7 +38,7 @@ import {
   X,
   Clock,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { CashBank, Branch, PaymentMovement, InterBranchTransfer, CashBankType } from '../../types/fx';
@@ -498,16 +498,13 @@ export const KasaBankaManagement: React.FC<KasaBankaManagementProps> = ({ onNavi
         };
       });
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Kasalar_Bankalar_POS_Kart');
-      XLSX.writeFile(wb, `FX_Finansal_Hesaplar_Raporu_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      downloadCsv(`FX_Finansal_Hesaplar_Raporu_${new Date().toISOString().slice(0, 10)}.csv`, exportData);
 
-      setFeedbackMessage('Excel raporu başarıyla indirildi.');
+      setFeedbackMessage('CSV raporu başarıyla indirildi.');
       setTimeout(() => setFeedbackMessage(null), 3000);
     } catch (e) {
       console.error(e);
-      alert('Excel dosyası oluşturulurken hata oluştu.');
+      alert('CSV dosyası oluşturulurken hata oluştu.');
     }
   };
 
@@ -1144,10 +1141,10 @@ export const KasaBankaManagement: React.FC<KasaBankaManagementProps> = ({ onNavi
               type="button"
               onClick={handleExportExcel}
               className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
-              title="Excel (.xlsx) indir"
+              title="CSV indir"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">Excel</span>
+              <span className="hidden sm:inline">CSV</span>
             </button>
 
             <button

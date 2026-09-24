@@ -43,7 +43,7 @@ import {
   Share2,
   Banknote,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { downloadCsv } from '../../lib/exportUtils';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -339,16 +339,13 @@ export const OdemeTahsilatManagement: React.FC = () => {
         'Durum': m.status === 'COMPLETED' ? 'Tamamlandı' : 'Bekliyor',
       }));
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Odeme_Tahsilat');
-      XLSX.writeFile(wb, `FX_Odeme_Tahsilat_Listesi_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      downloadCsv(`FX_Odeme_Tahsilat_Listesi_${new Date().toISOString().slice(0, 10)}.csv`, exportData);
 
-      setFeedbackMessage('Excel dosyası başarıyla indirildi.');
+      setFeedbackMessage('CSV dosyası başarıyla indirildi.');
       setTimeout(() => setFeedbackMessage(null), 3500);
     } catch (e) {
       console.error(e);
-      alert('Excel aktarımı başarısız oldu.');
+      alert('CSV aktarımı başarısız oldu.');
     }
   };
 
@@ -1016,11 +1013,11 @@ export const OdemeTahsilatManagement: React.FC = () => {
           <button
             type="button"
             onClick={handleExportExcel}
-            title="Excel Olarak İndir"
+            title="CSV olarak indir"
             className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100 rounded-lg border border-stone-200 transition-colors cursor-pointer"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Excel</span>
+            <span className="hidden sm:inline">CSV</span>
           </button>
 
           <button

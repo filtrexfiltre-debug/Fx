@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import {
   Building2,
   Users,
@@ -25,22 +25,23 @@ import {
   PanelLeftClose,
   PanelLeft,
 } from 'lucide-react';
-import { MusteriListesi } from './components/Cari/MusteriListesi';
-import { PersonelListesi } from './components/Personel/PersonelListesi';
-import { UrunStokDepoYonetimi } from './components/Stok/UrunStokDepoYonetimi';
-import { KasaBankaManagement } from './components/Kasa-Banka/KasaBankaManagement';
-import { OdemeTahsilatManagement } from './components/Finans/OdemeTahsilatManagement';
-import { GelirGiderManagement } from './components/Gelir-Gider/GelirGiderManagement';
-import { VirmanTransfer } from './components/Kasa-Banka/VirmanTransfer';
-import { VergiDagitim } from './components/Raporlar/VergiDagitim';
-import { AlisSatisManagement } from './components/Ticaret/AlisSatisManagement';
-import { EfaturaGibManagement } from './components/E-fatura/EfaturaGibManagement';
-import { ModulesOverview } from './components/layout/ModulesOverview';
-import { CodeExplorer } from './components/layout/CodeExplorer';
+import { AuthenticatedUser, fxApi, branchContext } from './services/api';
 import { SubeYonetimiModal } from './components/ayarlar/SubeYonetimiModal';
 import { NavigationDrawer, AppTabType } from './components/layout/NavigationDrawer';
-import { fxApi, branchContext } from './services/api';
 import { Branch } from './types/fx';
+
+const MusteriListesi = lazy(() => import('./components/Cari/MusteriListesi').then((module) => ({ default: module.MusteriListesi })));
+const PersonelListesi = lazy(() => import('./components/Personel/PersonelListesi').then((module) => ({ default: module.PersonelListesi })));
+const UrunStokDepoYonetimi = lazy(() => import('./components/Stok/UrunStokDepoYonetimi').then((module) => ({ default: module.UrunStokDepoYonetimi })));
+const KasaBankaManagement = lazy(() => import('./components/Kasa-Banka/KasaBankaManagement').then((module) => ({ default: module.KasaBankaManagement })));
+const OdemeTahsilatManagement = lazy(() => import('./components/Finans/OdemeTahsilatManagement').then((module) => ({ default: module.OdemeTahsilatManagement })));
+const GelirGiderManagement = lazy(() => import('./components/Gelir-Gider/GelirGiderManagement').then((module) => ({ default: module.GelirGiderManagement })));
+const VirmanTransfer = lazy(() => import('./components/Kasa-Banka/VirmanTransfer').then((module) => ({ default: module.VirmanTransfer })));
+const VergiDagitim = lazy(() => import('./components/Raporlar/VergiDagitim').then((module) => ({ default: module.VergiDagitim })));
+const AlisSatisManagement = lazy(() => import('./components/Ticaret/AlisSatisManagement').then((module) => ({ default: module.AlisSatisManagement })));
+const EfaturaGibManagement = lazy(() => import('./components/E-fatura/EfaturaGibManagement').then((module) => ({ default: module.EfaturaGibManagement })));
+const ModulesOverview = lazy(() => import('./components/layout/ModulesOverview').then((module) => ({ default: module.ModulesOverview })));
+const CodeExplorer = lazy(() => import('./components/layout/CodeExplorer').then((module) => ({ default: module.CodeExplorer })));
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTabType>('musteri');
@@ -68,56 +69,44 @@ export default function App() {
   };
   
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('fx_is_logged_in') === 'true';
+    return localStorage.getItem('fx_is_logged_in') === 'true' && Boolean(localStorage.getItem('fx_auth_token'));
   });
-  const [currentUser, setCurrentUser] = useState<{ email: string; name: string; role: string; branchId: string } | null>(() => {
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(() => {
     const saved = localStorage.getItem('fx_current_user');
-    return saved ? JSON.parse(saved) : null;
+    if (!saved) return null;
+    try {
+      const parsed = JSON.parse(saved);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      localStorage.removeItem('fx_current_user');
+      return null;
+    }
   });
 
   const [loginEmail, setLoginEmail] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState<string>('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const handleLogin = (email: string, pass: string) => {
+  const handleLogin = async (email: string, pass: string) => {
     setLoginError(null);
     if (!email || !pass) {
       setLoginError('Lütfen e-posta ve şifrenizi giriniz.');
       return;
     }
 
-    if (email === 'patron@enterprise.com' && pass === '123456') {
-      const user = { email, name: 'Ahmet Bey (Patron)', role: 'Patron', branchId: 'all' };
+    try {
+      const { user } = await fxApi.login(email, pass);
       setCurrentUser(user);
       setIsLoggedIn(true);
-      setIsGlobalUser(true);
-      setSelectedBranchId('all');
-      branchContext.setIsGlobalUser(true);
-      branchContext.setSelectedBranchId('all');
+      const globalUser = user.branchId === 'all';
+      setIsGlobalUser(globalUser);
+      setSelectedBranchId(user.branchId);
+      branchContext.setIsGlobalUser(globalUser);
+      branchContext.setSelectedBranchId(user.branchId);
       localStorage.setItem('fx_is_logged_in', 'true');
       localStorage.setItem('fx_current_user', JSON.stringify(user));
-    } else if (email === 'kadikoy@enterprise.com' && pass === '123456') {
-      const user = { email, name: 'Burak Demir (Kadıköy Müdürü)', role: 'Şube Yöneticisi', branchId: 'b2222222-2222-2222-2222-222222222222' };
-      setCurrentUser(user);
-      setIsLoggedIn(true);
-      setIsGlobalUser(false);
-      setSelectedBranchId('b2222222-2222-2222-2222-222222222222');
-      branchContext.setIsGlobalUser(false);
-      branchContext.setSelectedBranchId('b2222222-2222-2222-2222-222222222222');
-      localStorage.setItem('fx_is_logged_in', 'true');
-      localStorage.setItem('fx_current_user', JSON.stringify(user));
-    } else if (email === 'merkez@enterprise.com' && pass === '123456') {
-      const user = { email, name: 'Selin Kaya (Merkez Sorumlusu)', role: 'Şube Yöneticisi', branchId: 'b1111111-1111-1111-1111-111111111111' };
-      setCurrentUser(user);
-      setIsLoggedIn(true);
-      setIsGlobalUser(false);
-      setSelectedBranchId('b1111111-1111-1111-1111-111111111111');
-      branchContext.setIsGlobalUser(false);
-      branchContext.setSelectedBranchId('b1111111-1111-1111-1111-111111111111');
-      localStorage.setItem('fx_is_logged_in', 'true');
-      localStorage.setItem('fx_current_user', JSON.stringify(user));
-    } else {
-      setLoginError('Hatalı e-posta veya şifre! (Hızlı test butonlarını kullanabilirsiniz)');
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Giriş yapılamadı.');
     }
   };
 
@@ -128,6 +117,7 @@ export default function App() {
     setLoginPassword('');
     localStorage.removeItem('fx_is_logged_in');
     localStorage.removeItem('fx_current_user');
+    localStorage.removeItem('fx_auth_token');
   };
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -247,67 +237,6 @@ export default function App() {
               Giriş Yap
             </button>
 
-            {/* Hızlı Test Hesapları */}
-            <div className="border-t border-stone-150 pt-4 mt-2">
-              <span className="block text-[11px] font-semibold text-stone-500 text-center mb-3">
-                Hızlı akıllı giriş deneyimi (test hesapları)
-              </span>
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('patron@enterprise.com');
-                    setLoginPassword('123456');
-                    handleLogin('patron@enterprise.com', '123456');
-                  }}
-                  className="flex items-center justify-between p-2.5 bg-amber-50/70 hover:bg-amber-50 border border-amber-200 text-amber-950 rounded-lg text-left transition-colors cursor-pointer group w-full"
-                >
-                  <div>
-                    <div className="text-xs font-bold flex items-center gap-1">
-                      👑 Ahmet Bey <span className="text-[9px] bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded font-mono font-bold">GLOBAL USER / PATRON</span>
-                    </div>
-                    <div className="text-[10px] text-amber-700 font-mono">patron@enterprise.com</div>
-                  </div>
-                  <span className="text-xs font-bold opacity-60 group-hover:opacity-100">&rarr;</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('kadikoy@enterprise.com');
-                    setLoginPassword('123456');
-                    handleLogin('kadikoy@enterprise.com', '123456');
-                  }}
-                  className="flex items-center justify-between p-2.5 bg-indigo-50/70 hover:bg-indigo-50 border border-indigo-200 text-indigo-950 rounded-lg text-left transition-colors cursor-pointer group w-full"
-                >
-                  <div>
-                    <div className="text-xs font-bold flex items-center gap-1">
-                      🏬 Burak Demir <span className="text-[9px] bg-indigo-200 text-indigo-900 px-1.5 py-0.2 rounded font-mono font-bold">KADIKÖY MÜDÜRÜ</span>
-                    </div>
-                    <div className="text-[10px] text-indigo-700 font-mono">kadikoy@enterprise.com</div>
-                  </div>
-                  <span className="text-xs font-bold opacity-60 group-hover:opacity-100">&rarr;</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('merkez@enterprise.com');
-                    setLoginPassword('123456');
-                    handleLogin('merkez@enterprise.com', '123456');
-                  }}
-                  className="flex items-center justify-between p-2.5 bg-emerald-50/70 hover:bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-lg text-left transition-colors cursor-pointer group w-full"
-                >
-                  <div>
-                    <div className="text-xs font-bold flex items-center gap-1">
-                      🏢 Selin Kaya <span className="text-[9px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-mono font-bold">MERKEZ MÜDÜRÜ</span>
-                    </div>
-                    <div className="text-[10px] text-emerald-700 font-mono">merkez@enterprise.com</div>
-                  </div>
-                  <span className="text-xs font-bold opacity-60 group-hover:opacity-100">&rarr;</span>
-                </button>
-              </div>
-            </div>
           </form>
         </div>
       </div>
@@ -702,22 +631,24 @@ export default function App() {
 
         {/* ANA İÇERİK ALANI (EKRANA TAM OTURAN TAM GENİŞLİK / FULL-WIDTH) */}
         <main className="flex-1 w-full px-3 sm:px-6 lg:px-8 py-4">
-          {activeTab === 'musteri' && <MusteriListesi />}
-          {activeTab === 'personel' && <PersonelListesi />}
-          {activeTab === 'stok' && <UrunStokDepoYonetimi />}
-          {activeTab === 'alis-satis' && (
-            <AlisSatisManagement currentBranchId={selectedBranchId} branches={branches} />
-          )}
-          {activeTab === 'efatura-gib' && <EfaturaGibManagement />}
-          {activeTab === 'kasa-banka' && (
-            <KasaBankaManagement onNavigateToVirman={() => setActiveTab('virman')} />
-          )}
-          {activeTab === 'odeme-tahsilat' && <OdemeTahsilatManagement />}
-          {activeTab === 'gelir-gider' && <GelirGiderManagement />}
-          {activeTab === 'virman' && <VirmanTransfer />}
-          {activeTab === 'vergi' && <VergiDagitim />}
-          {activeTab === 'moduller' && <ModulesOverview onSelectTab={setActiveTab} />}
-          {activeTab === 'kodlar' && <CodeExplorer />}
+          <Suspense fallback={<div className="flex min-h-64 items-center justify-center text-sm text-stone-500">Modül yükleniyor...</div>}>
+            {activeTab === 'musteri' && <MusteriListesi />}
+            {activeTab === 'personel' && <PersonelListesi />}
+            {activeTab === 'stok' && <UrunStokDepoYonetimi />}
+            {activeTab === 'alis-satis' && (
+              <AlisSatisManagement currentBranchId={selectedBranchId} branches={branches} />
+            )}
+            {activeTab === 'efatura-gib' && <EfaturaGibManagement />}
+            {activeTab === 'kasa-banka' && (
+              <KasaBankaManagement onNavigateToVirman={() => setActiveTab('virman')} />
+            )}
+            {activeTab === 'odeme-tahsilat' && <OdemeTahsilatManagement />}
+            {activeTab === 'gelir-gider' && <GelirGiderManagement />}
+            {activeTab === 'virman' && <VirmanTransfer />}
+            {activeTab === 'vergi' && <VergiDagitim />}
+            {activeTab === 'moduller' && <ModulesOverview onSelectTab={setActiveTab} />}
+            {activeTab === 'kodlar' && <CodeExplorer />}
+          </Suspense>
         </main>
 
         {/* FOOTER */}

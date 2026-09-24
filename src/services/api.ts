@@ -309,6 +309,67 @@ const getStoredDebtCredits = (): DebtCreditItem[] => {
 
 let inMemoryDebtCredits: DebtCreditItem[] = getStoredDebtCredits();
 
+const getWarehouseBranchId = (warehouse: Warehouse): string | undefined => {
+  if (warehouse.branchId) return warehouse.branchId;
+  return BRANCHES.find((branch) => warehouse.warehouseCode.startsWith(branch.code))?.id;
+};
+
+const adjustRevenueExpenseEffects = (item: RevenueExpenseItem, multiplier: 1 | -1): void => {
+  if (item.paymentStatus === 'PAID' && item.cashBankId) {
+    const cashBank = inMemoryCashBanks.find((account) => account.id === item.cashBankId);
+    if (cashBank) {
+      const balanceDelta = item.type === 'GELIR' ? item.grandTotal : -item.grandTotal;
+      cashBank.balance = Math.round((cashBank.balance + balanceDelta * multiplier) * 100) / 100;
+    }
+  }
+
+  if (item.contactId) {
+    const contact = inMemoryContacts.find((candidate) => candidate.id === item.contactId);
+    if (contact) {
+      const balanceDelta = item.type === 'GELIR' ? item.grandTotal : -item.grandTotal;
+      contact.currentBalance = Math.round(((contact.currentBalance || 0) + balanceDelta * multiplier) * 100) / 100;
+      contact.updatedAt = new Date().toISOString();
+    }
+  }
+};
+
+const buildRevenueExpenseMovement = (item: RevenueExpenseItem): PaymentMovement | null => {
+  if (item.paymentStatus !== 'PAID' || !item.cashBankId) return null;
+  const cashBank = inMemoryCashBanks.find((account) => account.id === item.cashBankId);
+  if (!cashBank) return null;
+
+  const paymentMethod: PaymentMethodType = item.paymentMethod === 'HAVALE_EFT'
+    ? 'BANKA'
+    : item.paymentMethod === 'ACIK_HESAP'
+      ? 'CEK_SENET'
+      : item.paymentMethod;
+
+  return {
+    id: `pm-re-${item.id}`,
+    tenantId: CURRENT_TENANT.id,
+    branchId: item.branchId,
+    branchName: item.branchName,
+    movementType: item.type === 'GELIR' ? 'TAHSILAT' : 'MASRAF',
+    paymentMethod,
+    contactId: item.contactId,
+    contactTitle: item.contactTitle || item.title,
+    cashBankId: cashBank.id,
+    cashBankName: cashBank.name,
+    amount: item.grandTotal,
+    currency: item.currency,
+    exchangeRate: item.exchangeRate,
+    documentNumber: item.documentNumber,
+    receiptNumber: item.itemCode,
+    movementDate: item.transactionDate,
+    dueDate: item.dueDate,
+    status: 'COMPLETED',
+    description: item.title,
+    category: item.category,
+    createdAt: item.createdAt || new Date().toISOString(),
+    createdByUser: item.createdByUser,
+  };
+};
+
 
 
 export interface RequestOptions extends RequestInit {
@@ -324,29 +385,60 @@ export interface ApiResponse<T> {
   isConsolidatedReport: boolean;
 }
 
+export interface AuthenticatedUser {
+  email: string;
+  name: string;
+  role: string;
+  branchId: string;
+}
+
 /**
  * FX API Client
  * Hem gerçek .NET 9 backend'e ('/api/...') fetch isteği atabilir,
  * hem de offline/local test modunda %100 birebir HTTP pipeline davranışı sergiler.
  */
 export const fxApi = {
+  async login(email: string, password: string): Promise<{ user: AuthenticatedUser; token: string }> {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.message || 'E-posta veya şifre geçersiz.');
+    }
+
+    const token = payload.token || payload.accessToken;
+    const user = payload.user;
+    if (!token || !user) {
+      throw new Error('Kimlik doğrulama yanıtı geçersiz.');
+    }
+
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+    return { user, token };
+  },
+
   /**
    * İstek öncesi ortak header'ları hazırlayan pipeline fonksiyonu
    */
   getHeaders(): HeadersInit {
     const branchId = branchContext.getSelectedBranchId();
-    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) || 'mock_jwt_token_claims_tenant_branch';
+    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     const isGlobal = branchContext.getIsGlobalUser();
 
-    return {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`,
       // .NET 9 Middleware'in okuyacağı zorunlu başlıklar:
       'X-Tenant-Id': CURRENT_TENANT.id,
       'X-Selected-Branch-Id': branchId,
       'X-Is-Global-User': String(isGlobal),
     };
+
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
   },
 
   /**
@@ -1582,21 +1674,31 @@ export const fxApi = {
   // 2. DEPOLAR YÖNETİMİ (WAREHOUSES)
   // =========================================================================
   async getWarehouses(): Promise<ApiResponse<Warehouse[]>> {
+    const selectedBranch = branchContext.getSelectedBranchId();
+    const filtered = selectedBranch === 'all'
+      ? inMemoryWarehouses
+      : inMemoryWarehouses.filter((warehouse) => getWarehouseBranchId(warehouse) === selectedBranch);
+
     return {
       success: true,
-      data: [...inMemoryWarehouses],
-      appliedBranchFilter: branchContext.getSelectedBranchId(),
-      isConsolidatedReport: branchContext.getIsGlobalUser(),
+      data: filtered.map((warehouse) => ({
+        ...warehouse,
+        branchId: getWarehouseBranchId(warehouse),
+      })),
+      appliedBranchFilter: selectedBranch,
+      isConsolidatedReport: selectedBranch === 'all',
       timestamp: new Date().toISOString(),
     };
   },
 
   async createWarehouse(whData: Omit<Warehouse, 'id' | 'createdAt'>): Promise<ApiResponse<Warehouse>> {
     const id = `wh-${Date.now()}`;
+    const selectedBranch = branchContext.getSelectedBranchId();
     const newWh: Warehouse = {
       ...whData,
       id,
       tenantId: CURRENT_TENANT.id,
+      branchId: whData.branchId || (selectedBranch === 'all' ? inMemoryBranches[0]?.id : selectedBranch),
       createdAt: new Date().toISOString(),
     };
 
@@ -1697,11 +1799,23 @@ export const fxApi = {
   // 3. STOK HAREKETLERİ & GİRİŞ / ÇIKIŞ GÜNLÜĞÜ (STOCK MOVEMENTS)
   // =========================================================================
   async getStockMovements(): Promise<ApiResponse<StockMovement[]>> {
+    const selectedBranch = branchContext.getSelectedBranchId();
+    const visibleWarehouseIds = selectedBranch === 'all'
+      ? null
+      : new Set(
+          inMemoryWarehouses
+            .filter((warehouse) => getWarehouseBranchId(warehouse) === selectedBranch)
+            .map((warehouse) => warehouse.id),
+        );
+    const filtered = visibleWarehouseIds
+      ? inMemoryStockMovements.filter((movement) => visibleWarehouseIds.has(movement.warehouseId))
+      : inMemoryStockMovements;
+
     return {
       success: true,
-      data: [...inMemoryStockMovements],
-      appliedBranchFilter: branchContext.getSelectedBranchId(),
-      isConsolidatedReport: branchContext.getIsGlobalUser(),
+      data: [...filtered],
+      appliedBranchFilter: selectedBranch,
+      isConsolidatedReport: selectedBranch === 'all',
       timestamp: new Date().toISOString(),
     };
   },
@@ -1710,6 +1824,10 @@ export const fxApi = {
     const id = `sm-${Date.now()}`;
     const product = inMemoryProducts.find(p => p.id === movementData.productId);
     const warehouse = inMemoryWarehouses.find(w => w.id === movementData.warehouseId);
+    const selectedBranch = branchContext.getSelectedBranchId();
+    if (warehouse && selectedBranch !== 'all' && getWarehouseBranchId(warehouse) !== selectedBranch) {
+      throw new Error('Seçili şubeye ait olmayan depoya stok hareketi eklenemez.');
+    }
 
     const quantity = Number(movementData.quantity) || 0;
     const unitPrice = Number(movementData.unitPrice) || (product ? product.netPurchaseCost : 0);
@@ -1806,6 +1924,14 @@ export const fxApi = {
 
     if (!product || !sourceWh || !targetWh) {
       throw new Error('Ürün veya depolar sistemde bulunamadı.');
+    }
+
+    const selectedBranch = branchContext.getSelectedBranchId();
+    if (selectedBranch !== 'all' && (
+      getWarehouseBranchId(sourceWh) !== selectedBranch ||
+      getWarehouseBranchId(targetWh) !== selectedBranch
+    )) {
+      throw new Error('Seçili şubeye ait olmayan depolar arasında transfer yapılamaz.');
     }
 
     const sourceStock = inMemoryWarehouseStocks.find(
@@ -1915,11 +2041,23 @@ export const fxApi = {
   // 4. DEPO BAZINDA STOK DAĞILIMI (WAREHOUSE STOCKS)
   // =========================================================================
   async getWarehouseStocks(): Promise<ApiResponse<WarehouseStock[]>> {
+    const selectedBranch = branchContext.getSelectedBranchId();
+    const visibleWarehouseIds = selectedBranch === 'all'
+      ? null
+      : new Set(
+          inMemoryWarehouses
+            .filter((warehouse) => getWarehouseBranchId(warehouse) === selectedBranch)
+            .map((warehouse) => warehouse.id),
+        );
+    const filtered = visibleWarehouseIds
+      ? inMemoryWarehouseStocks.filter((stock) => visibleWarehouseIds.has(stock.warehouseId))
+      : inMemoryWarehouseStocks;
+
     return {
       success: true,
-      data: [...inMemoryWarehouseStocks],
-      appliedBranchFilter: branchContext.getSelectedBranchId(),
-      isConsolidatedReport: branchContext.getIsGlobalUser(),
+      data: [...filtered],
+      appliedBranchFilter: selectedBranch,
+      isConsolidatedReport: selectedBranch === 'all',
       timestamp: new Date().toISOString(),
     };
   },
@@ -2294,59 +2432,16 @@ export const fxApi = {
     };
 
     inMemoryRevenueExpenses = [newItem, ...inMemoryRevenueExpenses];
-
-    // Eğer işlem peşin ödendi/tahsil edildiyse ve kasa/banka seçildiyse bakiyeyi güncelle
-    if (newItem.paymentStatus === 'PAID' && newItem.cashBankId) {
-      const cashBankIndex = inMemoryCashBanks.findIndex(cb => cb.id === newItem.cashBankId);
-      if (cashBankIndex !== -1) {
-        const currentAcc = inMemoryCashBanks[cashBankIndex];
-        let newBalance = currentAcc.balance;
-        if (newItem.type === 'GELIR') {
-          newBalance += Number(newItem.grandTotal);
-        } else {
-          newBalance -= Number(newItem.grandTotal);
-        }
-        inMemoryCashBanks[cashBankIndex] = {
-          ...currentAcc,
-          balance: Math.round(newBalance * 100) / 100,
-        };
-        try {
-          localStorage.setItem(STORAGE_KEYS.CASH_BANKS, JSON.stringify(inMemoryCashBanks));
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
-
-    // İlgili Cari varsa ve Açık Hesap / Vadeli ise cari bakiyesini güncelle
-    if (newItem.contactId) {
-      const contactIndex = inMemoryContacts.findIndex(c => c.id === newItem.contactId);
-      if (contactIndex !== -1) {
-        const contact = inMemoryContacts[contactIndex];
-        let newCurrentBal = contact.currentBalance || 0;
-        if (newItem.type === 'GELIR') {
-          // Satış yapıldı: Müşteri bize borçlandı (Borç artar / alacağımız artar)
-          newCurrentBal += Number(newItem.grandTotal);
-        } else {
-          // Tedarikçiden alış veya gider: Biz borçlandık (Alacak artar / cari eksiye veya artıya gider)
-          newCurrentBal -= Number(newItem.grandTotal);
-        }
-        inMemoryContacts[contactIndex] = {
-          ...contact,
-          currentBalance: Math.round(newCurrentBal * 100) / 100,
-          updatedAt: new Date().toISOString(),
-        };
-        try {
-          localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(inMemoryContacts));
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
+    adjustRevenueExpenseEffects(newItem, 1);
+    const newMovement = buildRevenueExpenseMovement(newItem);
+    if (newMovement) inMemoryPaymentMovements = [newMovement, ...inMemoryPaymentMovements];
 
     // LocalStorage kaydet
     try {
       localStorage.setItem(STORAGE_KEYS.REVENUE_EXPENSES, JSON.stringify(inMemoryRevenueExpenses));
+      localStorage.setItem(STORAGE_KEYS.CASH_BANKS, JSON.stringify(inMemoryCashBanks));
+      localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(inMemoryContacts));
+      localStorage.setItem(STORAGE_KEYS.PAYMENT_MOVEMENTS, JSON.stringify(inMemoryPaymentMovements));
     } catch (e) {
       console.error(e);
     }
@@ -2367,20 +2462,31 @@ export const fxApi = {
       throw new Error('Gelir/Gider kaydı bulunamadı.');
     }
 
-    inMemoryRevenueExpenses[index] = {
+    const previousItem = inMemoryRevenueExpenses[index];
+    adjustRevenueExpenseEffects(previousItem, -1);
+    inMemoryPaymentMovements = inMemoryPaymentMovements.filter((movement) => movement.id !== `pm-re-${id}`);
+
+    const updatedItem = {
       ...inMemoryRevenueExpenses[index],
       ...updates,
     };
+    inMemoryRevenueExpenses[index] = updatedItem;
+    adjustRevenueExpenseEffects(updatedItem, 1);
+    const updatedMovement = buildRevenueExpenseMovement(updatedItem);
+    if (updatedMovement) inMemoryPaymentMovements = [updatedMovement, ...inMemoryPaymentMovements];
 
     try {
       localStorage.setItem(STORAGE_KEYS.REVENUE_EXPENSES, JSON.stringify(inMemoryRevenueExpenses));
+      localStorage.setItem(STORAGE_KEYS.CASH_BANKS, JSON.stringify(inMemoryCashBanks));
+      localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(inMemoryContacts));
+      localStorage.setItem(STORAGE_KEYS.PAYMENT_MOVEMENTS, JSON.stringify(inMemoryPaymentMovements));
     } catch (e) {
       console.error(e);
     }
 
     return {
       success: true,
-      data: inMemoryRevenueExpenses[index],
+      data: updatedItem,
       message: 'Gelir/Gider kaydı güncellendi.',
       appliedBranchFilter: inMemoryRevenueExpenses[index].branchId,
       isConsolidatedReport: false,
@@ -2394,57 +2500,16 @@ export const fxApi = {
       throw new Error('Silinecek gelir/gider kaydı bulunamadı.');
     }
 
-    // Kasa / Banka Bakiye Geri Alma (Rollback)
-    if (item.paymentStatus === 'PAID' && item.cashBankId) {
-      const cashBankIndex = inMemoryCashBanks.findIndex(cb => cb.id === item.cashBankId);
-      if (cashBankIndex !== -1) {
-        const currentAcc = inMemoryCashBanks[cashBankIndex];
-        let newBalance = currentAcc.balance;
-        if (item.type === 'GELIR') {
-          newBalance -= Number(item.grandTotal);
-        } else {
-          newBalance += Number(item.grandTotal);
-        }
-        inMemoryCashBanks[cashBankIndex] = {
-          ...currentAcc,
-          balance: Math.round(newBalance * 100) / 100,
-        };
-        try {
-          localStorage.setItem(STORAGE_KEYS.CASH_BANKS, JSON.stringify(inMemoryCashBanks));
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
-
-    // Cari Bakiye Geri Alma (Rollback)
-    if (item.contactId) {
-      const contactIndex = inMemoryContacts.findIndex(c => c.id === item.contactId);
-      if (contactIndex !== -1) {
-        const contact = inMemoryContacts[contactIndex];
-        let newCurrentBal = contact.currentBalance || 0;
-        if (item.type === 'GELIR') {
-          newCurrentBal -= Number(item.grandTotal);
-        } else {
-          newCurrentBal += Number(item.grandTotal);
-        }
-        inMemoryContacts[contactIndex] = {
-          ...contact,
-          currentBalance: Math.round(newCurrentBal * 100) / 100,
-          updatedAt: new Date().toISOString(),
-        };
-        try {
-          localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(inMemoryContacts));
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    }
+    adjustRevenueExpenseEffects(item, -1);
+    inMemoryPaymentMovements = inMemoryPaymentMovements.filter((movement) => movement.id !== `pm-re-${id}`);
 
     inMemoryRevenueExpenses = inMemoryRevenueExpenses.filter(i => i.id !== id);
 
     try {
       localStorage.setItem(STORAGE_KEYS.REVENUE_EXPENSES, JSON.stringify(inMemoryRevenueExpenses));
+      localStorage.setItem(STORAGE_KEYS.CASH_BANKS, JSON.stringify(inMemoryCashBanks));
+      localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(inMemoryContacts));
+      localStorage.setItem(STORAGE_KEYS.PAYMENT_MOVEMENTS, JSON.stringify(inMemoryPaymentMovements));
     } catch (e) {
       console.error(e);
     }
@@ -2792,6 +2857,9 @@ export const fxApi = {
     if (amount <= 0) {
       throw new Error('Geçerli bir ödeme tutarı giriniz.');
     }
+    if (amount > item.remainingAmount + 0.01) {
+      throw new Error(`Ödeme tutarı kalan borç/alacak tutarını aşamaz. Kalan tutar: ₺${item.remainingAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}.`);
+    }
 
     const selectedCashBank = inMemoryCashBanks.find(cb => cb.id === paymentData.cashBankId);
     if (!selectedCashBank) {
@@ -2917,6 +2985,42 @@ export const fxApi = {
     if (!item) {
       throw new Error('Kayıt bulunamadı.');
     }
+
+    const isAlacak = item.type === 'ALACAK';
+
+    // Oluşturma ve sonradan yapılan ödemelerin cari etkisini geri al.
+    if (item.contactId) {
+      const contactIndex = inMemoryContacts.findIndex(c => c.id === item.contactId);
+      if (contactIndex !== -1) {
+        const contact = inMemoryContacts[contactIndex];
+        const restoredBalance = (contact.currentBalance || 0) + (isAlacak ? -item.remainingAmount : item.remainingAmount);
+        inMemoryContacts[contactIndex] = {
+          ...contact,
+          currentBalance: restoredBalance,
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(inMemoryContacts));
+      }
+    }
+
+    // Bu kayda bağlı tüm ödeme hareketlerini ve kasa etkisini geri al.
+    const paymentReceipts = new Set(item.payments.map(payment => payment.receiptNumber));
+    const relatedMovements = inMemoryPaymentMovements.filter((movement) =>
+      paymentReceipts.has(movement.documentNumber) || paymentReceipts.has(movement.receiptNumber)
+    );
+    for (const movement of relatedMovements) {
+      const cashBankIndex = inMemoryCashBanks.findIndex(cb => cb.id === movement.cashBankId);
+      if (cashBankIndex !== -1) {
+        const cashBank = inMemoryCashBanks[cashBankIndex];
+        inMemoryCashBanks[cashBankIndex] = {
+          ...cashBank,
+          balance: cashBank.balance + (isAlacak ? -movement.amount : movement.amount),
+        };
+      }
+    }
+    inMemoryPaymentMovements = inMemoryPaymentMovements.filter((movement) => !relatedMovements.includes(movement));
+    localStorage.setItem(STORAGE_KEYS.CASH_BANKS, JSON.stringify(inMemoryCashBanks));
+    localStorage.setItem(STORAGE_KEYS.PAYMENT_MOVEMENTS, JSON.stringify(inMemoryPaymentMovements));
 
     inMemoryDebtCredits = inMemoryDebtCredits.filter(i => i.id !== id);
     try {

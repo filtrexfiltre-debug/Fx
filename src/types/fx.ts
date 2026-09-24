@@ -227,6 +227,7 @@ export interface Product {
 export interface Warehouse {
   id: string;
   tenantId: string;
+  branchId?: string;
   warehouseCode: string; // Depo Kodu *
   warehouseType: 'Merkez' | 'Soğuk Hava' | 'Sanal Depo' | 'Şube Deposu' | 'Gümrüklü Depo' | string; // Depo Türü *
   name: string; // Depo Adı *

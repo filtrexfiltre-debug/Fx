@@ -86,8 +86,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
     },
     {
       id: 'stok',
-      label: 'Ürün, stok & depo',
-      shortLabel: 'Stok & depo',
+      label: 'Ürün & Stok & Depo',
+      shortLabel: 'Ürün & Stok & Depo',
       icon: Boxes,
     },
     {

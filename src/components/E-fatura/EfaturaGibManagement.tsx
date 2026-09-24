@@ -126,8 +126,8 @@ export const EfaturaGibManagement: React.FC = () => {
   };
 
   // Sisteme Alış Faturası ve Stok Olarak Aktar
-  const handleImportToErp = (id: string) => {
-    const imported = tradeService.importGibInvoiceToErp(id);
+  const handleImportToErp = async (id: string) => {
+    const imported = await tradeService.importGibInvoiceToErp(id);
     if (imported) {
       loadData();
       if (selectedInvoiceForViewer && selectedInvoiceForViewer.id === id) {
