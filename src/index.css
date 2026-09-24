@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* AG Grid styling is now handled via the Theming API in src/lib/agGridTheme.ts */
+
+table thead th {
+  text-transform: none !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  background-color: #f7f9fa !important;
+  border-bottom: 1px solid #e7ebec !important;
+}

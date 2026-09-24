@@ -1,0 +1,6 @@
+{
+  "name": "FX",
+  "description": "FX - Çoklu Şube (Multi-Branch) ve Çoklu Kiracı (Multi-Tenant) Kurumsal ERP & Finans Çözümü",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

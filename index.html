@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FX - Çoklu Şube & Kiracı ERP Platformu</title>
+    <meta name="description" content="FX - Türk ticaret ve vergi mevzuatına uyumlu, çoklu şube ve çoklu kiracı kurumsal finans ve ERP platformu." />
+    <meta property="og:title" content="FX - Çoklu Şube & Kiracı ERP Platformu" />
+    <meta property="og:description" content="FX - Türk ticaret ve vergi mevzuatına uyumlu, çoklu şube ve çoklu kiracı kurumsal finans ve ERP platformu." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Suppress noisy third-party browser extension errors (MetaMask, Web3 wallet injection, etc.)
+      (function () {
+        var isExtensionError = function (str) {
+          if (!str || typeof str !== 'string') return false;
+          var lower = str.toLowerCase();
+          return (
+            lower.includes('metamask') ||
+            lower.includes('failed to connect to metamask') ||
+            lower.includes('ethereum') ||
+            lower.includes('chrome-extension://') ||
+            lower.includes('moz-extension://') ||
+            lower.includes('inpage.js')
+          );
+        };
+
+        window.addEventListener(
+          'unhandledrejection',
+          function (event) {
+            var reason = event.reason;
+            var message = (reason && (reason.message || reason.stack || reason.toString())) || '';
+            if (isExtensionError(message)) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+            }
+          },
+          true
+        );
+
+        window.addEventListener(
+          'error',
+          function (event) {
+            var message = event.message || '';
+            var filename = event.filename || '';
+            if (isExtensionError(message) || isExtensionError(filename)) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+            }
+          },
+          true
+        );
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
