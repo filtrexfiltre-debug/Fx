@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   PieChart,
   Calculator,
@@ -92,7 +92,7 @@ export const VergiDagitim: React.FC = () => {
   };
 
   // Grid State Persistence
-  const onSaveGridState = useCallback(() => {
+  const onSaveGridState = React.useCallback(() => {
     if (!gridApi) return;
     try {
       const state = gridApi.getColumnState();
@@ -102,7 +102,7 @@ export const VergiDagitim: React.FC = () => {
     }
   }, [gridApi]);
 
-  const onGridReady = useCallback((params: GridReadyEvent) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent) => {
     setGridApi(params.api);
     try {
       const savedState = localStorage.getItem(STORAGE_GRID_KEY);

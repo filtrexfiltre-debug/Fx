@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import {
   ColDef,
@@ -109,7 +109,7 @@ export const GelirGiderManagement: React.FC = () => {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const sidebarButtonRef = useRef<HTMLButtonElement>(null);
 
-  const onSaveGridState = useCallback(() => {
+  const onSaveGridState = React.useCallback(() => {
     if (!gridApi) return;
     try {
       const colState = gridApi.getColumnState();
@@ -136,7 +136,7 @@ export const GelirGiderManagement: React.FC = () => {
   }, []);
 
   // Kategorileri Yeniden Yükle
-  const loadCategories = useCallback(async () => {
+  const loadCategories = React.useCallback(async () => {
     try {
       const catRes = await fxApi.getRevenueExpenseCategories();
       if (catRes.success) {
@@ -148,7 +148,7 @@ export const GelirGiderManagement: React.FC = () => {
   }, []);
 
   // Verileri Yükle
-  const loadData = useCallback(async () => {
+  const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
       const [reRes, cbRes, brRes, catRes] = await Promise.all([
@@ -790,7 +790,7 @@ export const GelirGiderManagement: React.FC = () => {
     []
   );
 
-  const onGridReady = (params: GridReadyEvent<RevenueExpenseItem>) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent<RevenueExpenseItem>) => {
     setGridApi(params.api);
     try {
       const saved = localStorage.getItem(STORAGE_COLUMNS_KEY);
@@ -800,7 +800,7 @@ export const GelirGiderManagement: React.FC = () => {
     } catch (e) {
       console.warn('Could not restore column state:', e);
     }
-  };
+  }, []);
 
   return (
     <div className="w-full space-y-4">

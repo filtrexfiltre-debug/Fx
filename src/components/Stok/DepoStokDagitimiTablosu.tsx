@@ -286,7 +286,7 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
     doc.save(`Depo_Stok_Dagitimi_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  const onGridReady = (params: GridReadyEvent<WarehouseStock>) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent<WarehouseStock>) => {
     setGridApi(params.api);
     try {
       const savedState = localStorage.getItem(STORAGE_GRID_KEY);
@@ -299,7 +299,7 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
 
   const saveGridState = () => {
     if (!gridApi) return;

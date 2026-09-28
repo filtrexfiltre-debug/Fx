@@ -8,6 +8,7 @@ import {
   GridReadyEvent,
   GridApi,
   RowSelectionOptions,
+  RowClickedEvent,
 } from 'ag-grid-community';
 import {
   Plus,
@@ -1411,7 +1412,7 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
     doc.save(`Urun_Katalogu_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  const onGridReady = (params: GridReadyEvent<Product>) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent<Product>) => {
     setGridApi(params.api);
     try {
       const savedState = localStorage.getItem(STORAGE_GRID_KEY);
@@ -1424,7 +1425,7 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
 
   const defaultColDef = useMemo<ColDef>(
     () => ({
@@ -1576,6 +1577,20 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
               headerHeight={42}
               animateRows={true}
               enableCellTextSelection={true}
+              rowClass="cursor-pointer hover:bg-stone-50/70"
+              onRowClicked={(event: RowClickedEvent<Product>) => {
+                if (!event.data) return;
+                const target = event.event?.target as HTMLElement | null;
+                if (
+                  target?.closest('button') ||
+                  target?.closest('input') ||
+                  target?.closest('.ag-selection-checkbox') ||
+                  target?.closest('[col-id="actions"]')
+                ) {
+                  return;
+                }
+                handleOpenEditModal(event.data);
+              }}
             />
           </div>
         </div>

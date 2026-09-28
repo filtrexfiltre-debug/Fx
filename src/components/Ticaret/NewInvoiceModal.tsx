@@ -17,7 +17,7 @@ import {
   Warehouse as WarehouseIcon,
 } from 'lucide-react';
 import { TradeInvoice, TradeItemLine } from '../../types/trade';
-import { Contact, Product, Employee, Warehouse, ContactAddress } from '../../types/fx';
+import { Contact, Product, Employee, Warehouse, ContactAddress, WarehouseStock } from '../../types/fx';
 import { tradeService } from '../../services/tradeService';
 import { fxApi } from '../../services/api';
 
@@ -44,12 +44,14 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
   initialOfferDate,
   initialContactId,
   initialItems,
+  initialDirection = 'SATIS',
 }) => {
   const [scenario, setScenario] = useState<'TICARI' | 'TEMEL' | 'E_ARSIV'>('TICARI');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [warehouseStocks, setWarehouseStocks] = useState<WarehouseStock[]>([]);
 
   const [selectedContactId, setSelectedContactId] = useState<string>('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
@@ -77,16 +79,16 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
   const [items, setItems] = useState<TradeItemLine[]>([
     {
       id: 'inv-it-1',
-      skuCode: 'FLT-001',
-      productName: 'Endüstriyel Yağ Filtresi',
-      quantity: 50,
+      skuCode: '',
+      productName: '',
+      quantity: 1,
       unit: 'Adet',
-      unitPrice: 650,
+      unitPrice: 0,
       discountPercent: 0,
       vatRate: 20,
-      taxExclusiveAmount: 32500,
-      taxAmount: 6500,
-      lineTotal: 39000,
+      taxExclusiveAmount: 0,
+      taxAmount: 0,
+      lineTotal: 0,
     },
   ]);
 
@@ -144,25 +146,9 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
       fxApi.getWarehouses().then((res) => {
         const whs = res.data || [];
         setWarehouses(whs);
-        if (whs.length > 0) {
-          // Otomatik şube / personel / varsayılan depo eşleşmesi
-          const matched =
-            whs.find(
-              (w) =>
-                w.name.toLowerCase().includes('merkez') ||
-                w.name.toLowerCase().includes(currentBranchName.toLowerCase().split(' ')[0]) ||
-                w.warehouseType === 'Merkez'
-            ) || whs[0];
-
-          setItems((prev) =>
-            prev.map((it) => ({
-              ...it,
-              warehouseId: matched.id,
-              warehouseName: matched.name,
-            }))
-          );
-        }
+        // Otomatik depo seçimini kaldırdık - Kullanıcı manuel seçmeli
       });
+      fxApi.getWarehouseStocks().then((res) => setWarehouseStocks(res.data || []));
 
       if (initialItems && initialItems.length > 0) {
         setItems(initialItems);
@@ -210,74 +196,137 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
   };
 
   const handleItemChange = (index: number, field: keyof TradeItemLine, val: any) => {
-    const next = [...items];
-    const item = { ...next[index], [field]: val };
+    setItems((prev) => {
+      const next = [...prev];
+      const item = { ...next[index], [field]: val };
 
-    const qty = Number(item.quantity) || 0;
-    const price = Number(item.unitPrice) || 0;
-    const disc = Number(item.discountPercent) || 0;
-    const vat = Number(item.vatRate) || 0;
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unitPrice) || 0;
+      const disc = Number(item.discountPercent) || 0;
+      const vat = Number(item.vatRate) || 0;
 
-    const rawTotal = qty * price;
-    const discountAmount = rawTotal * (disc / 100);
-    const taxExclusive = rawTotal - discountAmount;
-    const taxAmount = taxExclusive * (vat / 100);
-    const lineTotal = taxExclusive + taxAmount;
+      const rawTotal = qty * price;
+      const discountAmount = rawTotal * (disc / 100);
+      const taxExclusive = rawTotal - discountAmount;
+      const taxAmount = taxExclusive * (vat / 100);
+      const lineTotal = taxExclusive + taxAmount;
 
-    item.taxExclusiveAmount = taxExclusive;
-    item.taxAmount = taxAmount;
-    item.lineTotal = lineTotal;
+      item.taxExclusiveAmount = taxExclusive;
+      item.taxAmount = taxAmount;
+      item.lineTotal = lineTotal;
 
-    next[index] = item;
-    setItems(next);
+      next[index] = item;
+      return next;
+    });
   };
 
   const handleProductSelect = (index: number, productId: string) => {
     const prod = products.find((p) => p.id === productId);
     if (!prod) return;
 
-    const next = [...items];
+    // Depo seçimi kontrolü
+    if (!items[index].warehouseId) {
+      alert(`Lütfen önce bu satır için bir ${initialDirection === 'SATIS' ? 'çıkış' : 'giriş'} deposu seçiniz!`);
+      return;
+    }
+
+    // Satış faturasında stok kontrolü
+    if (initialDirection === 'SATIS') {
+      const stock = warehouseStocks.find(ws => ws.productId === productId && ws.warehouseId === items[index].warehouseId);
+      if (!stock || stock.totalQuantity <= 0) {
+        alert('Seçilen depoda bu üründen stok bulunmamaktadır!');
+        return;
+      }
+    }
+
     const price = prod.salePriceExclVat || 650;
 
-    next[index] = {
-      ...next[index],
-      productId: prod.id,
-      skuCode: prod.skuCode || '',
-      productName: prod.name || '',
-      unitPrice: price,
-      unit: prod.unitType || 'Adet',
-      vatRate: prod.vatRatePercent || 20,
-    };
-    handleItemChange(index, 'unitPrice', price);
+    setItems((prev) => {
+      const next = [...prev];
+      const item = {
+        ...next[index],
+        productId: prod.id,
+        skuCode: prod.skuCode || '',
+        productName: prod.name || '',
+        unitPrice: price,
+        unit: prod.unitType || 'Adet',
+        vatRate: prod.vatRatePercent || 20,
+      };
+
+      // Recalculate totals for the new product
+      const qty = Number(item.quantity) || 0;
+      const disc = Number(item.discountPercent) || 0;
+      const vat = Number(item.vatRate) || 0;
+
+      const rawTotal = qty * price;
+      const discountAmount = rawTotal * (disc / 100);
+      const taxExclusive = rawTotal - discountAmount;
+      const taxAmount = taxExclusive * (vat / 100);
+      const lineTotal = taxExclusive + taxAmount;
+
+      item.taxExclusiveAmount = taxExclusive;
+      item.taxAmount = taxAmount;
+      item.lineTotal = lineTotal;
+
+      next[index] = item;
+      return next;
+    });
   };
 
   const handleWarehouseSelect = (index: number, warehouseId: string) => {
     const wh = warehouses.find((w) => w.id === warehouseId);
-    const next = [...items];
-    next[index] = {
-      ...next[index],
-      warehouseId,
-      warehouseName: wh ? wh.name : undefined,
-    };
-    setItems(next);
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        warehouseId,
+        warehouseName: wh ? wh.name : undefined,
+      };
+      return next;
+    });
   };
 
   // Tüm kalemler için ortak depo seçimi (İlk Önce Depo Seç)
   const handleMasterWarehouseChange = (warehouseId: string) => {
     const wh = warehouses.find((w) => w.id === warehouseId);
     setItems((prev) =>
-      prev.map((it) => ({
-        ...it,
-        warehouseId,
-        warehouseName: wh ? wh.name : undefined,
-      }))
+      prev.map((it) => {
+        // Satış faturasında yeni depoda stok yoksa ürünü temizle
+        let updatedProdId = it.productId;
+        let updatedSku = it.skuCode;
+        let updatedName = it.productName;
+
+        if (initialDirection === 'SATIS' && it.productId) {
+          const stock = warehouseStocks.find(ws => ws.productId === it.productId && ws.warehouseId === warehouseId);
+          if (!stock || stock.totalQuantity <= 0) {
+            updatedProdId = undefined;
+            updatedSku = '';
+            updatedName = '';
+          }
+        }
+
+        return {
+          ...it,
+          warehouseId,
+          warehouseName: wh ? wh.name : undefined,
+          productId: updatedProdId,
+          skuCode: updatedSku,
+          productName: updatedName,
+        };
+      })
     );
   };
 
   const handleAddItem = () => {
-    const defaultWh = warehouses[0];
-    const currentMasterWhId = items[0]?.warehouseId || defaultWh?.id;
-    const currentMasterWhName = items[0]?.warehouseName || defaultWh?.name;
+    // Depo seçimi kontrolü
+    if (!items[0]?.warehouseId) {
+      alert('Ürün eklemeden önce lütfen bir çıkış deposu seçiniz!');
+      return;
+    }
+
+    const defaultWh = warehouses.find(w => w.id === items[0].warehouseId);
+    const currentMasterWhId = items[0]?.warehouseId;
+    const currentMasterWhName = items[0]?.warehouseName;
 
     const newItem: TradeItemLine = {
       id: `inv-it-${Date.now()}`,
@@ -323,9 +372,9 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
       tenantId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
       branchId: currentBranchId === 'all' ? 'b1111111-1111-1111-1111-111111111111' : currentBranchId,
       branchName: currentBranchName,
-      direction: 'SATIS',
+      direction: (initialDirection as any) || 'SATIS',
       scenario,
-      invoiceType: 'SATIS',
+      invoiceType: (initialDirection as any) || 'SATIS',
       contactId: contact.id,
       contactTitle: contact.title || contact.authorizedPerson || 'İsimsiz Müşteri',
       contactTaxNumber: taxIdType === 'VKN' ? contactTaxNumber : undefined,
@@ -368,9 +417,13 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-stone-900">Yeni Satış Faturası Düzenle</h2>
+              <h2 className="text-lg font-bold text-stone-900">
+                {initialDirection === 'SATIS' ? 'Yeni Satış Faturası Düzenle' : 'Yeni Alış Faturası Girişi'}
+              </h2>
               <p className="text-xs text-stone-500">
-                Oluşturulan satış faturası cari hesabına borç olarak yansır ve GİB entegrasyonuna gönderilir.
+                {initialDirection === 'SATIS' 
+                  ? 'Oluşturulan satış faturası cari hesabına borç olarak yansır ve GİB entegrasyonuna gönderilir.'
+                  : 'Alınan fatura cari hesabına alacak olarak yansır ve stok girişlerini günceller.'}
               </p>
             </div>
           </div>
@@ -679,11 +732,15 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 bg-stone-50 p-3 rounded-xl border border-stone-200">
               <div className="flex items-center gap-2">
                 <WarehouseIcon className="w-4 h-4 text-indigo-600" />
-                <span className="text-xs font-bold text-stone-800">Çıkış Deposu:</span>
+                <span className="text-xs font-bold text-stone-800">
+                  {initialDirection === 'SATIS' ? 'Çıkış Deposu' : 'Giriş Deposu'}: <span className="text-rose-500">*</span>
+                </span>
                 <select
                   value={items[0]?.warehouseId || ''}
                   onChange={(e) => handleMasterWarehouseChange(e.target.value)}
-                  className="h-9 px-3 bg-white border border-stone-300 rounded-lg text-xs font-bold text-stone-900 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer min-w-[220px]"
+                  className={`h-9 px-3 bg-white border rounded-lg text-xs font-bold text-stone-900 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer min-w-[220px] ${
+                    !items[0]?.warehouseId ? 'border-rose-300 ring-2 ring-rose-100' : 'border-stone-300'
+                  }`}
                 >
                   <option value="">Depo Seçiniz...</option>
                   {warehouses.map((wh) => (
@@ -692,12 +749,19 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
                     </option>
                   ))}
                 </select>
+                {!items[0]?.warehouseId && (
+                  <span className="text-[10px] text-rose-500 font-bold animate-pulse">Lütfen önce depo seçin!</span>
+                )}
               </div>
 
               <button
                 type="button"
                 onClick={handleAddItem}
-                className="flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+                disabled={!items[0]?.warehouseId}
+                className={`flex items-center gap-1 px-4 py-2 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer ${
+                  !items[0]?.warehouseId ? 'bg-stone-400 opacity-50 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
+                title={!items[0]?.warehouseId ? 'Önce depo seçmelisiniz' : 'Yeni kalem ekle'}
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Ekle</span>
@@ -727,14 +791,29 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
                         <select
                           value={item.productId || ''}
                           onChange={(e) => handleProductSelect(idx, e.target.value)}
-                          className="w-full h-9 px-2 bg-white border border-stone-300 rounded-lg text-xs font-bold text-stone-900 shadow-2xs"
+                          disabled={!item.warehouseId}
+                          className={`w-full h-9 px-2 bg-white border rounded-lg text-xs font-bold shadow-2xs ${
+                            !item.warehouseId ? 'bg-stone-50 border-stone-200 text-stone-400 cursor-not-allowed' : 'border-stone-300 text-stone-900'
+                          }`}
                         >
-                          <option value="">Ürün / Hizmet Adı Seçiniz...</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} {p.skuCode ? `(${p.skuCode})` : ''}
-                            </option>
-                          ))}
+                          <option value="">{!item.warehouseId ? `⚠️ Önce ${initialDirection === 'SATIS' ? 'Çıkış' : 'Giriş'} Deposu Seçiniz` : 'Ürün / Hizmet Adı Seçiniz...'}</option>
+                          {products
+                            .filter(p => {
+                              if (initialDirection !== 'SATIS' || !item.warehouseId) return true;
+                              // Seçili depoda stokta var mı kontrol et
+                              const stock = warehouseStocks.find(ws => ws.productId === p.id && ws.warehouseId === item.warehouseId);
+                              return stock && stock.totalQuantity > 0;
+                            })
+                            .map((p) => {
+                              const stock = warehouseStocks.find(ws => ws.productId === p.id && ws.warehouseId === item.warehouseId);
+                              const stockQty = stock ? stock.totalQuantity : 0;
+                              return (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} {p.skuCode ? `(${p.skuCode})` : ''} 
+                                  {initialDirection === 'SATIS' && item.warehouseId ? ` [Mevcut: ${stockQty} ${p.unitType || 'Adet'}]` : ''}
+                                </option>
+                              );
+                            })}
                         </select>
                       </td>
 

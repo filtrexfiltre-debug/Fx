@@ -35,6 +35,7 @@ import {
   Share2,
   MapPin,
   X,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   TradeOffer,
@@ -173,149 +174,196 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
   const invoiceColumnDefs = useMemo<ColDef<TradeInvoice>[]>(() => [
     {
       field: 'invoiceNumber',
-      headerName: 'Fatura No',
-      width: 140,
+      headerName: 'Belge No / Senaryo',
+      width: 180,
       pinned: 'left',
-      valueFormatter: (params) => params.data?.scenario === 'TICARI' ? 'TİCARİ' : params.data?.scenario === 'TEMEL' ? 'TEMEL' : params.data?.scenario || '',
-      cellRenderer: (params: ICellRendererParams<TradeInvoice>) => (
-        <div className="flex flex-col justify-center h-full py-1">
-          <span className="font-mono font-bold text-stone-900">{params.value}</span>
-          <span className="text-[10px] text-stone-400 font-sans">
-            {params.data?.scenario === 'TICARI' ? 'TİCARİ' : params.data?.scenario === 'TEMEL' ? 'TEMEL' : params.data?.scenario}
-          </span>
-        </div>
-      ),
+      cellRenderer: (params: ICellRendererParams<TradeInvoice>) => {
+        const scenario = params.data?.scenario;
+        let scenarioLabel = 'E-ARŞİV';
+        let scenarioStyle = 'bg-stone-100 text-stone-600';
+        
+        if (scenario === 'TICARI') {
+          scenarioLabel = 'TİCARİ';
+          scenarioStyle = 'bg-indigo-50 text-indigo-700 border-indigo-100';
+        } else if (scenario === 'TEMEL') {
+          scenarioLabel = 'TEMEL';
+          scenarioStyle = 'bg-blue-50 text-blue-700 border-blue-100';
+        }
+
+        return (
+          <div className="flex flex-col justify-center h-full py-1">
+            <div className="flex items-center gap-1.5">
+              <FileCheck2 className="w-3.5 h-3.5 text-stone-400" />
+              <span className="font-mono font-black text-stone-900 tracking-tighter">{params.value}</span>
+            </div>
+            <div className="mt-0.5">
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${scenarioStyle}`}>
+                {scenarioLabel}
+              </span>
+            </div>
+          </div>
+        );
+      },
     },
     {
       field: 'contactTitle',
-      headerName: 'Cari Firma / Şahıs',
-      minWidth: 230,
+      headerName: 'Cari Firma / Ünvan Bilgisi',
+      minWidth: 280,
       flex: 1.5,
       cellRenderer: (params: ICellRendererParams<TradeInvoice>) => (
-        <div className="flex flex-col justify-center h-full py-1">
-          <span className="font-semibold text-stone-900 truncate" title={params.value}>
-            {params.value}
-          </span>
-          <div className="text-[10px] text-stone-400 font-mono">
-            {params.data?.contactTaxNumber && <span>VKN: {params.data.contactTaxNumber}</span>}
-            {params.data?.contactTcNumber && <span>TCKN: {params.data.contactTcNumber}</span>}
+        <div className="flex items-center gap-3 h-full py-1">
+          <div className="w-8 h-8 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-center text-stone-500 shrink-0">
+            <Building className="w-4 h-4" />
+          </div>
+          <div className="flex flex-col justify-center overflow-hidden">
+            <span className="font-bold text-stone-900 truncate leading-tight" title={params.value}>
+              {params.value}
+            </span>
+            <div className="flex items-center gap-2 mt-0.5">
+              {params.data?.contactTaxNumber && (
+                <span className="text-[10px] text-stone-500 font-mono bg-stone-50 px-1 rounded border border-stone-100">
+                  VKN: {params.data.contactTaxNumber}
+                </span>
+              )}
+              {params.data?.contactTcNumber && (
+                <span className="text-[10px] text-stone-500 font-mono bg-stone-50 px-1 rounded border border-stone-100">
+                  TCKN: {params.data.contactTcNumber}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       ),
     },
     {
       field: 'issueDate',
-      headerName: 'Düzenleme Tarihi',
-      width: 130,
+      headerName: 'Düzenleme',
+      width: 120,
       cellRenderer: (params: ICellRendererParams<TradeInvoice>) => (
-        <span className="text-stone-600 font-medium">{params.value}</span>
+        <div className="flex flex-col justify-center h-full py-1 text-[11px]">
+          <span className="text-stone-400 font-semibold uppercase tracking-tighter">Tarih</span>
+          <span className="text-stone-900 font-bold font-mono">{params.value}</span>
+        </div>
       ),
     },
     {
       field: 'dueDate',
-      headerName: 'Vade Tarihi',
-      width: 130,
+      headerName: 'Vade Durumu',
+      width: 140,
       cellRenderer: (params: ICellRendererParams<TradeInvoice>) => {
         const isExp = params.value && new Date(params.value) < new Date() && params.data?.paymentStatus !== 'PAID';
         return (
           <div className="flex flex-col justify-center h-full py-1">
-            <span className={`font-medium ${isExp ? 'text-rose-600 font-bold' : 'text-stone-800'}`}>
-              {params.value}
-            </span>
-            {isExp && <span className="text-[10px] text-rose-500 font-bold">Vadesi Geçti</span>}
+             <div className="flex items-center gap-1">
+                <Clock className={`w-3 h-3 ${isExp ? 'text-rose-500' : 'text-stone-400'}`} />
+                <span className={`font-mono text-xs font-bold ${isExp ? 'text-rose-600' : 'text-stone-800'}`}>
+                  {params.value}
+                </span>
+             </div>
+            {isExp && <span className="text-[9px] text-rose-500 font-black uppercase tracking-tighter animate-pulse">Vadesi Geçti</span>}
           </div>
         );
       },
     },
     {
       field: 'grandTotal',
-      headerName: 'Toplam Tutar',
-      width: 140,
+      headerName: 'Tutar / Döviz',
+      width: 160,
       type: 'rightAligned',
       cellRenderer: (params: ICellRendererParams<TradeInvoice>) => (
-        <span className="font-mono font-bold text-stone-900">
-          {params.value?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {params.data?.currency}
-        </span>
+        <div className="flex flex-col justify-center items-end h-full py-1">
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-black text-stone-900 font-mono">
+              {params.value?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+            </span>
+            <span className="text-[10px] font-black px-1 rounded bg-stone-100 text-stone-600 border border-stone-200">
+              {params.data?.currency}
+            </span>
+          </div>
+          {params.data?.currency !== 'TRY' && (
+             <span className="text-[9px] text-stone-400 font-mono italic">
+               (₺{params.data?.grandTotalTRY?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })})
+             </span>
+          )}
+        </div>
       ),
     },
     {
       field: 'paymentStatus',
-      headerName: 'Ödeme Durumu',
-      width: 150,
-      valueFormatter: (params) => {
-        const status = params.value;
-        const isSales = params.data?.direction === 'SATIS';
-        if (status === 'PAID') return isSales ? 'Tahsil Edildi' : 'Ödeme Yapıldı';
-        if (status === 'PARTIAL') return isSales ? 'Kısmi Tahsilat' : 'Kısmi Ödendi';
-        return isSales ? 'Tahsilat Bekliyor' : 'Ödeme Yapılmadı';
-      },
+      headerName: 'Finansal Durum',
+      width: 160,
       cellRenderer: (params: ICellRendererParams<TradeInvoice>) => {
         const status = params.value;
         const isSales = params.data?.direction === 'SATIS';
         let label = '';
         let style = '';
+        let Icon = AlertCircle;
         
         if (status === 'PAID') {
-          label = isSales ? 'Tahsil Edildi' : 'Ödeme Yapıldı';
-          style = 'bg-emerald-100 text-emerald-800';
+          label = isSales ? 'TAHSİL EDİLDİ' : 'ÖDEME YAPILDI';
+          style = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+          Icon = CheckCircle2;
         } else if (status === 'PARTIAL') {
-          label = isSales ? 'Kısmi Tahsilat' : 'Kısmi Ödendi';
-          style = 'bg-amber-100 text-amber-800';
+          label = isSales ? 'KISMİ TAHSİLAT' : 'KISMİ ÖDEME';
+          style = 'bg-amber-50 text-amber-700 border-amber-200';
+          Icon = Clock;
         } else {
-          label = isSales ? 'Tahsilat Bekliyor' : 'Ödeme Yapılmadı';
-          style = 'bg-stone-100 text-stone-700';
+          label = isSales ? 'ÖDEME BEKLİYOR' : 'ÖDENMEDİ';
+          style = 'bg-rose-50 text-rose-700 border-rose-200';
+          Icon = AlertCircle;
         }
         
         return (
           <div className="flex items-center h-full">
-            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${style}`}>
-              {label}
-            </span>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black border ${style}`}>
+              <Icon className="w-3 h-3 shrink-0" />
+              <span>{label}</span>
+            </div>
           </div>
         );
       },
     },
     {
       field: 'gibStatus',
-      headerName: 'GİB Durumu',
+      headerName: 'E-Fatura / GİB',
       width: 150,
       cellRenderer: (params: ICellRendererParams<TradeInvoice>) => {
-        if (params.value === 'PENDING') {
+        if (params.value === 'NOT_SENT') {
           return (
-            <div className="flex flex-col items-center justify-center gap-1 py-1">
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                <Clock className="w-3 h-3" /> Taslak
-              </span>
+            <div className="flex items-center gap-2 h-full py-1">
               <button
                 onClick={(e) => { e.stopPropagation(); handleSendToGib(params.data!.id); }}
-                className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold rounded-md shadow-2xs transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 bg-stone-900 hover:bg-black text-white text-[9px] font-black rounded border border-stone-800 shadow-sm transition-all cursor-pointer group"
               >
-                GİB'e Gönder
+                <Send className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
+                <span>GÖNDER</span>
               </button>
+              <span className="text-[9px] font-bold text-stone-400">TASLAK</span>
             </div>
           );
         }
         return (
-          <div className="flex items-center justify-center h-full">
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-              <CheckCircle2 className="w-3 h-3" /> GİB Onaylı
-            </span>
+          <div className="flex items-center h-full">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[9px] font-black">
+              <ShieldCheck className="w-3 h-3" />
+              <span>GİB ONAYLI</span>
+            </div>
           </div>
         );
       },
     },
     {
-      headerName: 'İşlemler',
-      width: 80,
+      headerName: '',
+      width: 60,
       pinned: 'right',
       cellRenderer: (params: ICellRendererParams<TradeInvoice>) => (
         <div className="flex items-center justify-center h-full">
           <button
             onClick={() => handleViewInvoiceAsGib(params.data!)}
-            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-            title="Resmi E-Fatura Görüntüle"
+            className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+            title="Detaylı Görünüm"
           >
-            <Eye className="w-4 h-4" />
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       ),
@@ -326,26 +374,39 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
   const offerColumnDefs = useMemo<ColDef<TradeOffer>[]>(() => [
     {
       field: 'offerNumber',
-      headerName: 'Teklif No',
-      width: 140,
+      headerName: 'Belge No',
+      width: 160,
       pinned: 'left',
       cellRenderer: (params: ICellRendererParams<TradeOffer>) => (
-        <span className="font-mono font-bold text-stone-900">{params.value}</span>
+        <div className="flex items-center gap-2 h-full">
+           <div className="w-7 h-7 rounded bg-stone-100 flex items-center justify-center text-stone-500">
+             <FileSpreadsheet className="w-3.5 h-3.5" />
+           </div>
+           <span className="font-mono font-black text-stone-900 tracking-tighter">{params.value}</span>
+        </div>
       ),
     },
     {
       field: 'contactTitle',
-      headerName: 'Cari Ünvan',
-      minWidth: 230,
+      headerName: 'Cari Ünvan / Firma',
+      minWidth: 260,
       flex: 1.5,
       cellRenderer: (params: ICellRendererParams<TradeOffer>) => (
         <div className="flex flex-col justify-center h-full py-1">
-          <span className="font-semibold text-stone-900 truncate" title={params.value}>
+          <span className="font-bold text-stone-900 truncate leading-tight" title={params.value}>
             {params.value}
           </span>
-          <div className="text-[10px] text-stone-400 font-mono">
-            {params.data?.contactTaxNumber && <span>VKN: {params.data.contactTaxNumber}</span>}
-            {params.data?.paymentTerms && <span>• {params.data.paymentTerms}</span>}
+          <div className="flex items-center gap-2 mt-0.5">
+            {params.data?.contactTaxNumber && (
+              <span className="text-[9px] text-stone-500 font-mono bg-stone-50 px-1 rounded border border-stone-100">
+                {params.data.contactTaxNumber}
+              </span>
+            )}
+            {params.data?.paymentTerms && (
+               <span className="text-[9px] text-indigo-500 font-semibold truncate max-w-[140px]">
+                 • {params.data.paymentTerms}
+               </span>
+            )}
           </div>
         </div>
       ),
@@ -354,20 +415,24 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
       field: 'issueDate',
       headerName: 'Teklif Tarihi',
       width: 120,
+      cellRenderer: (params) => <span className="font-mono text-xs font-bold text-stone-600">{params.value}</span>
     },
     {
       field: 'validUntilDate',
       headerName: 'Geçerlilik',
-      width: 130,
+      width: 140,
       cellRenderer: (params: ICellRendererParams<TradeOffer>) => {
         const isExp = params.value && new Date(params.value) < new Date();
         return (
           <div className="flex flex-col justify-center h-full py-1">
-            <span className={`font-medium ${isExp ? 'text-rose-600 font-bold' : 'text-stone-800'}`}>
-              {params.value}
-            </span>
+             <div className="flex items-center gap-1">
+                <Calendar className={`w-3 h-3 ${isExp ? 'text-rose-500' : 'text-stone-400'}`} />
+                <span className={`font-mono text-xs font-bold ${isExp ? 'text-rose-600' : 'text-stone-800'}`}>
+                  {params.value}
+                </span>
+             </div>
             {isExp && params.data?.status !== 'CONVERTED' && (
-              <span className="text-[10px] text-rose-500 font-semibold">Süresi Doldu</span>
+              <span className="text-[9px] text-rose-500 font-black uppercase tracking-tighter">Süresi Doldu</span>
             )}
           </div>
         );
@@ -375,54 +440,67 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
     },
     {
       field: 'grandTotal',
-      headerName: 'Toplam Tutar',
-      width: 140,
+      headerName: 'Teklif Tutarı',
+      width: 160,
       type: 'rightAligned',
       cellRenderer: (params: ICellRendererParams<TradeOffer>) => (
-        <span className="font-mono font-bold text-stone-900">
-          {params.value?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {params.data?.currency}
-        </span>
+        <div className="flex flex-col justify-center items-end h-full py-1">
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-black text-stone-900 font-mono">
+              {params.value?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+            </span>
+            <span className="text-[10px] font-black px-1 rounded bg-stone-100 text-stone-600 border border-stone-200">
+              {params.data?.currency}
+            </span>
+          </div>
+        </div>
       ),
     },
     {
       field: 'status',
-      headerName: 'Durum',
+      headerName: 'Süreç Durumu',
       width: 160,
       cellRenderer: (params: ICellRendererParams<TradeOffer>) => {
         const status = params.value;
         let style = '';
         let label = '';
+        let Icon = Clock;
         
         switch (status) {
           case 'CONVERTED':
-            label = 'Faturaya Dönüştü';
-            style = 'bg-emerald-100 text-emerald-800';
+            label = 'FATURALANDI';
+            style = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            Icon = CheckCircle2;
             break;
           case 'ACCEPTED':
-            label = 'Onaylandı';
-            style = 'bg-blue-100 text-blue-800';
+            label = 'ONAYLANDI';
+            style = 'bg-blue-50 text-blue-700 border-blue-200';
+            Icon = CheckCircle2;
             break;
           case 'REJECTED':
-            label = 'Reddedildi';
-            style = 'bg-rose-100 text-rose-800';
+            label = 'REDDEDİLDİ';
+            style = 'bg-rose-50 text-rose-700 border-rose-200';
+            Icon = X;
             break;
           default:
-            label = 'Yanıt Bekliyor';
-            style = 'bg-amber-100 text-amber-800';
+            label = 'BEKLEMEDE';
+            style = 'bg-amber-50 text-amber-700 border-amber-200';
+            Icon = Clock;
         }
         
         return (
           <div className="flex items-center h-full">
-            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${style}`}>
-              {label}
-            </span>
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black border ${style}`}>
+              <Icon className="w-3 h-3 shrink-0" />
+              <span>{label}</span>
+            </div>
           </div>
         );
       },
     },
     {
-      headerName: 'Aksiyon',
-      width: 160,
+      headerName: '',
+      width: 130,
       pinned: 'right',
       cellRenderer: (params: ICellRendererParams<TradeOffer>) => {
         const off = params.data;
@@ -431,18 +509,18 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
           <div className="flex items-center justify-center gap-2 h-full">
             <button
               onClick={() => setSelectedOfferForDetail(off)}
-              className="p-1.5 text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
-              title="İncele / Yazdır"
+              className="w-8 h-8 flex items-center justify-center text-stone-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+              title="Detay / Yazdır"
             >
-              <Eye className="w-4 h-4" />
+              <Printer className="w-4 h-4" />
             </button>
             {off.status !== 'CONVERTED' && (
               <button
                 onClick={() => handleConvertToInvoice(off.id)}
-                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-200 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 bg-stone-900 hover:bg-black text-white text-[9px] font-black rounded shadow-sm transition-all cursor-pointer"
               >
-                <span>Faturaya Aktar</span>
-                <ArrowRight className="w-3 h-3" />
+                <span>FATURA</span>
+                <ArrowRight className="w-2.5 h-2.5" />
               </button>
             )}
           </div>
@@ -543,229 +621,144 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
   }, [activeTab]);
 
   return (
-    <div className="space-y-6">
-      {/* ÜST BAŞLIK VE ŞUBE FİLTRESİ */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-stone-200 shadow-2xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700 font-bold shadow-2xs">
-              <ShoppingBag className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-stone-900 tracking-tight">
-                Alışlar & Satışlar
-              </h1>
-
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Dinamik Ekleme Butonu */}
-          <button
-            onClick={handlePrimaryActionClick}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{primaryActionLabel}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* KPI METRİK KARTLARI */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Satış Cirosu */}
+    <div className="space-y-4">
+      {/* Üst İstatistik Şeridi (Personel Yönetimi İle Aynı Yapı) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Satış Hacmi */}
         <div
           onClick={() => setActiveTab('satislar')}
-          className={`bg-white p-4 rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-md flex items-center justify-between ${
-            activeTab === 'satislar' ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20' : 'border-stone-200 hover:border-stone-300'
+          className={`bg-white border rounded-lg p-3.5 shadow-xs cursor-pointer transition-all ${
+            activeTab === 'satislar' ? 'border-indigo-500 ring-1 ring-indigo-500/20 bg-indigo-50/10' : 'border-stone-200/90 hover:border-stone-300'
           }`}
         >
-          <div>
-            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block">
-              Toplam Satış Hacmi
-            </span>
-            <div className="text-lg font-black text-stone-900 font-mono mt-0.5">
-              ₺ {totalSalesTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-            </div>
-            <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-              <TrendingUp className="w-3 h-3" /> Faturalandırılmış Satışlar (Tıkla)
-            </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-stone-500">Toplam Satış Hacmi</span>
+            <TrendingUp className="w-4 h-4 text-indigo-600" />
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5" />
-          </div>
+          <p className="mt-1 text-xl font-bold text-stone-900 tracking-tight font-mono">
+            ₺{totalSalesTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+          <span className="text-[11px] text-indigo-600 font-medium flex items-center gap-1 mt-0.5">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Faturalandırılmış Satışlar
+          </span>
         </div>
 
         {/* Alış & Satınalma */}
         <div
           onClick={() => setActiveTab('alislar')}
-          className={`bg-white p-4 rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-md flex items-center justify-between ${
-            activeTab === 'alislar' ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/20' : 'border-stone-200 hover:border-stone-300'
+          className={`bg-white border rounded-lg p-3.5 shadow-xs cursor-pointer transition-all ${
+            activeTab === 'alislar' ? 'border-emerald-500 ring-1 ring-emerald-500/20 bg-emerald-50/10' : 'border-stone-200/90 hover:border-stone-300'
           }`}
         >
-          <div>
-            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block">
-              Toplam Alış & Satınalma
-            </span>
-            <div className="text-lg font-black text-stone-900 font-mono mt-0.5">
-              ₺ {totalPurchasesTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-            </div>
-            <span className="text-[10px] text-stone-500 font-semibold flex items-center gap-1 mt-1">
-              <TrendingDown className="w-3 h-3 text-rose-500" /> Mal & Hizmet Alımları (Tıkla)
-            </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-emerald-700">Toplam Alış & Satınalma</span>
+            <TrendingDown className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-            <TrendingDown className="w-5 h-5" />
-          </div>
+          <p className="mt-1 text-xl font-bold text-emerald-950 tracking-tight font-mono">
+            ₺{totalPurchasesTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+          <span className="text-[11px] text-stone-400 font-medium">Mal & Hizmet Alımları</span>
         </div>
 
-        {/* Bekleyen Teklifler */}
+        {/* Açık Teklifler */}
         <div
           onClick={() => setActiveTab('verilen-teklifler')}
-          className={`bg-white p-4 rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-md flex items-center justify-between ${
-            activeTab === 'verilen-teklifler' ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/20' : 'border-stone-200 hover:border-stone-300'
+          className={`bg-white border rounded-lg p-3.5 shadow-xs cursor-pointer transition-all ${
+            activeTab === 'verilen-teklifler' ? 'border-amber-500 ring-1 ring-amber-500/20 bg-amber-50/10' : 'border-stone-200/90 hover:border-stone-300'
           }`}
         >
-          <div>
-            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block">
-              Açık / Onay Bekleyen Teklif
-            </span>
-            <div className="text-lg font-black text-amber-600 font-mono mt-0.5">
-              {activeOffersCount} Adet
-            </div>
-            <span className="text-[10px] text-stone-500 font-semibold flex items-center gap-1 mt-1">
-              <Clock className="w-3 h-3" /> Faturaya Dönüşebilir (Tıkla)
-            </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-amber-700">Açık / Onay Bekleyen</span>
+            <Clock className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <Clock className="w-5 h-5" />
-          </div>
+          <p className="mt-1 text-xl font-bold text-amber-950 tracking-tight font-mono">
+            {activeOffersCount} Adet
+          </p>
+          <span className="text-[11px] text-amber-600 font-medium">Faturaya Dönüşebilir</span>
         </div>
 
-        {/* Bekleyen Tahsilat */}
-        <div
-          onClick={() => setActiveTab('satislar')}
-          className="bg-white p-4 rounded-xl border border-stone-200 hover:border-stone-300 transition-all cursor-pointer shadow-2xs hover:shadow-md flex items-center justify-between"
-        >
-          <div>
-            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block">
-              Açık Satış Tahsilatı (Bakiye)
-            </span>
-            <div className="text-lg font-black text-indigo-700 font-mono mt-0.5">
-              ₺ {pendingCollectionTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-            </div>
-            <span className="text-[10px] text-indigo-500 font-semibold flex items-center gap-1 mt-1">
-              <DollarSign className="w-3 h-3" /> Vadesi Takip Edilen
-            </span>
+        {/* Açık Bakiye */}
+        <div className="bg-white border border-stone-200/90 rounded-lg p-3.5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-purple-700">Açık Satış Tahsilatı</span>
+            <DollarSign className="w-4 h-4 text-purple-600" />
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <DollarSign className="w-5 h-5" />
-          </div>
+          <p className="mt-1 text-xl font-bold text-purple-950 tracking-tight font-mono">
+            ₺{pendingCollectionTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+          <span className="text-[11px] text-stone-400">Vadesi Takip Edilen Bakiye</span>
         </div>
       </div>
 
-      {/* 4 SEKME VE ARAMA KONTROLÜ */}
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-2xs overflow-hidden">
-        {/* TAB MENÜSÜ */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-stone-200 px-4 pt-3 bg-stone-50/70 gap-3">
-          <div className="flex gap-1 overflow-x-auto no-scrollbar">
-            {/* Sekme 1: Satışlar */}
-            <button
-              onClick={() => setActiveTab('satislar')}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all shrink-0 ${
-                activeTab === 'satislar'
-                  ? 'bg-white text-indigo-700 border-indigo-600 shadow-2xs'
-                  : 'text-stone-600 border-transparent hover:text-stone-900 hover:bg-stone-100/50'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4 text-indigo-600" />
-              <span>Satışlar</span>
-              <span className="px-2 py-0.5 text-[10px] rounded-full bg-indigo-50 text-indigo-700 font-mono">
-                {salesInvoices.length}
-              </span>
-            </button>
-
-            {/* Sekme 2: Alışlar */}
-            <button
-              onClick={() => setActiveTab('alislar')}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all shrink-0 ${
-                activeTab === 'alislar'
-                  ? 'bg-white text-emerald-700 border-emerald-600 shadow-2xs'
-                  : 'text-stone-600 border-transparent hover:text-stone-900 hover:bg-stone-100/50'
-              }`}
-            >
-              <ShoppingBag className="w-4 h-4 text-emerald-600" />
-              <span>Alışlar</span>
-              <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-50 text-emerald-700 font-mono">
-                {purchaseInvoices.length}
-              </span>
-            </button>
-
-            {/* Sekme 3: Verilen Teklifler */}
-            <button
-              onClick={() => setActiveTab('verilen-teklifler')}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all shrink-0 ${
-                activeTab === 'verilen-teklifler'
-                  ? 'bg-white text-blue-700 border-blue-600 shadow-2xs'
-                  : 'text-stone-600 border-transparent hover:text-stone-900 hover:bg-stone-100/50'
-              }`}
-            >
-              <Send className="w-4 h-4 text-blue-600" />
-              <span>Verilen Teklifler</span>
-              <span className="px-2 py-0.5 text-[10px] rounded-full bg-blue-50 text-blue-700 font-mono">
-                {givenOffers.length}
-              </span>
-            </button>
-
-            {/* Sekme 4: Alınan Teklifler */}
-            <button
-              onClick={() => setActiveTab('alinan-teklifler')}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all shrink-0 ${
-                activeTab === 'alinan-teklifler'
-                  ? 'bg-white text-amber-700 border-amber-600 shadow-2xs'
-                  : 'text-stone-600 border-transparent hover:text-stone-900 hover:bg-stone-100/50'
-              }`}
-            >
-              <FileSpreadsheet className="w-4 h-4 text-amber-600" />
-              <span>Alınan Teklifler</span>
-              <span className="px-2 py-0.5 text-[10px] rounded-full bg-amber-50 text-amber-700 font-mono">
-                {receivedOffers.length}
-              </span>
-            </button>
-          </div>
-
-          {/* Hızlı Arama & Sidebar Toggle */}
-          <div className="flex items-center gap-3 pb-2 sm:pb-0">
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+      {/* Kontrol Çubuğu (Arama, Sekmeler ve İşlem Butonları - Personel Form Yapısı ile Aynı) */}
+      <div className="bg-white border border-stone-200/90 rounded-lg p-3 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Sol: Hızlı Arama ve Sekme Seçimi */}
+          <div className="flex flex-wrap items-center gap-2.5 flex-1">
+            <div className="relative min-w-[220px] max-w-xs">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Fatura, teklif no veya cari ara..."
-                className="w-full h-8 pl-8 pr-3 bg-white border border-stone-300 rounded-lg text-xs placeholder:text-stone-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-stone-50/70 border border-stone-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:bg-white text-stone-800 placeholder-stone-400"
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
-            
+
+            {/* Mod / Sekme Seçimi */}
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as AlisSatisTab)}
+              className="py-1.5 px-2.5 bg-stone-50 border border-stone-200 rounded-md text-xs font-semibold text-stone-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+            >
+              <option value="satislar">📈 Satışlar ({salesInvoices.length})</option>
+              <option value="alislar">🛍️ Alışlar ({purchaseInvoices.length})</option>
+              <option value="verilen-teklifler">📤 Verilen Teklifler ({givenOffers.length})</option>
+              <option value="alinan-teklifler">📥 Alınan Teklifler ({receivedOffers.length})</option>
+            </select>
+
+            <div className="text-xs text-stone-500 font-medium px-2 hidden sm:block">
+              Şube: <strong className="text-stone-800">{currentBranchName}</strong>
+            </div>
+          </div>
+
+          {/* Sağ: Aksiyon Butonları */}
+          <div className="flex items-center gap-2">
             <AgGridSidebarToggleBtn
               isOpen={isSidebarOpen}
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             />
+
+            <button
+              type="button"
+              onClick={handlePrimaryActionClick}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors shadow-xs cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{primaryActionLabel}</span>
+            </button>
           </div>
         </div>
+      </div>
 
-        {/* AG GRID TABLOSU */}
-        <div className="relative flex bg-white overflow-hidden" style={{ height: '560px' }}>
-          <div className="flex-1 overflow-hidden h-full">
+      {/* AG Grid Alanı & Yan Özelleştirme Paneli */}
+      <div className="flex gap-4 items-start relative h-[580px]">
+        <div
+          className={`bg-white border border-stone-200/90 rounded-lg shadow-xs overflow-hidden transition-all duration-300 ${
+            isSidebarOpen ? 'flex-1' : 'w-full'
+          }`}
+        >
+          <div style={{ height: '580px', width: '100%' }}>
             <AgGridReact theme={appTheme}
               localeText={AG_GRID_LOCALE_TR}
               rowData={
@@ -784,10 +777,10 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
               }
               onGridReady={onGridReady}
               pagination={true}
-              paginationPageSize={20}
-              paginationPageSizeSelector={[10, 20, 50, 100]}
+              paginationPageSize={10}
+              paginationPageSizeSelector={[10, 25, 50]}
               animateRows={true}
-              rowHeight={54}
+              rowHeight={56}
               headerHeight={42}
               rowSelection={{
                 mode: 'singleRow',
@@ -795,16 +788,16 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
               }}
             />
           </div>
-
-          {/* Sütun Ayarları Sidebar'ı */}
-          {isSidebarOpen && (
-            <AgGridColumnSidebar
-              gridApi={gridApi}
-              onClose={() => setIsSidebarOpen(false)}
-              sidebarRef={sidebarRef}
-            />
-          )}
         </div>
+
+        {/* Sütun Ayarları Sidebar'ı */}
+        {isSidebarOpen && (
+          <AgGridColumnSidebar
+            gridApi={gridApi}
+            onClose={() => setIsSidebarOpen(false)}
+            sidebarRef={sidebarRef}
+          />
+        )}
       </div>
 
       {/* MODALLAR */}

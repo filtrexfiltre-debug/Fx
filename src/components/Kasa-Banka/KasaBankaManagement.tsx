@@ -1022,7 +1022,7 @@ export const KasaBankaManagement: React.FC<KasaBankaManagementProps> = ({ onNavi
   ], [isGlobalUser, handleApproveMovement, handleRejectMovement]);
 
   // AG Grid Hazır ve State Yönetimi
-  const onGridReady = (params: GridReadyEvent<CashBank>) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent<CashBank>) => {
     setGridApi(params.api);
     try {
       const savedState = localStorage.getItem(STORAGE_GRID_KEY);
@@ -1035,7 +1035,7 @@ export const KasaBankaManagement: React.FC<KasaBankaManagementProps> = ({ onNavi
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
 
   const saveGridState = () => {
     if (!gridApi) return;

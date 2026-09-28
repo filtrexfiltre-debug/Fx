@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { appTheme } from '../../lib/agGridTheme';
 import { AG_GRID_LOCALE_TR } from '../../lib/agGridLocaleTR';
@@ -112,7 +112,7 @@ export const BorcAlacakManagement: React.FC<BorcAlacakManagementProps> = ({
   }, []);
 
   // Verileri yükle
-  const loadData = useCallback(async () => {
+  const loadData = React.useCallback(async () => {
     try {
       setRefreshing(true);
       const [itemsRes, contactsRes, cbRes] = await Promise.all([
@@ -614,9 +614,9 @@ export const BorcAlacakManagement: React.FC<BorcAlacakManagementProps> = ({
     enableClickSelection: true,
   }), []);
 
-  const onGridReady = (params: GridReadyEvent) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent) => {
     setGridApi(params.api);
-  };
+  }, []);
 
   const currentBranchObj = branches.find(b => b.id === currentBranchId);
   const currentBranchDisplayName = currentBranchId === 'all' ? 'Tüm Şubeler (Konsolide)' : currentBranchObj?.name || 'Merkez Şube';

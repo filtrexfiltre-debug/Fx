@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { appTheme } from '../../lib/agGridTheme';
 import { AG_GRID_LOCALE_TR } from '../../lib/agGridLocaleTR';
@@ -91,9 +91,30 @@ export const isValidIBAN = (iban: string): boolean => {
 
 // Telefon Numarası Doğrulama Yardımcısı
 export const isValidPhone = (phone?: string): boolean => {
-  if (!phone || !phone.trim()) return true; // Opsiyonel
+  if (!phone || !phone.trim() || phone.trim() === '+90') return true; // Opsiyonel veya boş
   const digits = phone.replace(/\D/g, '');
   return digits.length >= 10 && digits.length <= 13;
+};
+
+const normalizePhoneInput = (digits: string): string => {
+  let clean = digits.replace(/\D/g, '');
+  if (clean.startsWith('90')) clean = clean.slice(2);
+  if (clean.startsWith('0')) clean = clean.slice(1);
+  if (!clean) return '+90';
+  if (clean.length <= 3) return `+90 (${clean}`;
+  if (clean.length <= 6) return `+90 (${clean.slice(0, 3)}) ${clean.slice(3)}`;
+  if (clean.length <= 8) return `+90 (${clean.slice(0, 3)}) ${clean.slice(3, 6)} ${clean.slice(6)}`;
+  return `+90 (${clean.slice(0, 3)}) ${clean.slice(3, 6)} ${clean.slice(6, 8)} ${clean.slice(8, 10)}`;
+};
+
+export const formatPhoneNumber = (val: string): string => {
+  if (!val) return '';
+  const trimmed = val.trim();
+  if (!trimmed || trimmed === '+') return '';
+  if (trimmed.startsWith('+') && !trimmed.startsWith('+90')) {
+    return trimmed;
+  }
+  return normalizePhoneInput(trimmed);
 };
 
 export const PersonelListesi: React.FC = () => {
@@ -112,7 +133,7 @@ export const PersonelListesi: React.FC = () => {
   // Geri Bildirim ve Bildirimler (Hata/Başarı)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const showFeedback = useCallback((type: 'success' | 'error', message: string) => {
+  const showFeedback = React.useCallback((type: 'success' | 'error', message: string) => {
     setFeedback({ type, message });
     setTimeout(() => {
       setFeedback((prev) => (prev?.message === message ? null : prev));
@@ -196,14 +217,14 @@ export const PersonelListesi: React.FC = () => {
     firstName: '',
     lastName: '',
     identityNumber: '',
-    phoneNumber: '',
+    phoneNumber: '+90',
     email: '',
     branchId: '',
     department: '',
     title: '',
     bloodGroup: '0 Rh(+)',
     emergencyContactName: '',
-    emergencyContactPhone: '',
+    emergencyContactPhone: '+90',
     emergencyContactRelation: 'Eşi',
     birthDate: '1990-01-01',
     educationLevel: 'Lisans',
@@ -252,7 +273,7 @@ export const PersonelListesi: React.FC = () => {
   };
 
   // Verileri Yükle
-  const loadData = useCallback(async () => {
+  const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
       const branchesList = fxApi.getBranches();
@@ -292,7 +313,7 @@ export const PersonelListesi: React.FC = () => {
   }, [loadData]);
 
   // Şube Adı Çözücü
-  const getBranchName = useCallback(
+  const getBranchName = React.useCallback(
     (branchId: string) => {
       const found = branches.find((b) => b.id === branchId);
       return found ? found.name : 'Bilinmeyen Şube';
@@ -301,7 +322,7 @@ export const PersonelListesi: React.FC = () => {
   );
 
   // Otomatik Adres Metni Oluşturucu
-  const computeAddress = useCallback((data: typeof formData | EmployeeAddress) => {
+  const computeAddress = React.useCallback((data: typeof formData | EmployeeAddress) => {
     const parts: string[] = [];
     if ('neighborhoodId' in data && data.neighborhoodId) {
       parts.push(data.neighborhoodId.endsWith('Mah.') || data.neighborhoodId.endsWith('Mahallesi') ? data.neighborhoodId : `${data.neighborhoodId} Mah.`);
@@ -379,14 +400,14 @@ export const PersonelListesi: React.FC = () => {
       firstName: '',
       lastName: '',
       identityNumber: '',
-      phoneNumber: '',
+      phoneNumber: '+90',
       email: '',
       branchId: branches[0]?.id || '',
       department: '',
       title: '',
       bloodGroup: '0 Rh(+)',
       emergencyContactName: '',
-      emergencyContactPhone: '',
+      emergencyContactPhone: '+90',
       emergencyContactRelation: 'Eşi',
       birthDate: '1995-01-01',
       educationLevel: 'Lisans',
@@ -414,21 +435,21 @@ export const PersonelListesi: React.FC = () => {
   };
 
   // Personel Düzenleme Açılışı
-  const handleOpenEdit = useCallback((emp: Employee) => {
+  const handleOpenEdit = React.useCallback((emp: Employee) => {
     setEditingEmployee(emp);
     const firstAddr = emp.addresses && emp.addresses.length > 0 ? emp.addresses[0] : null;
     setFormData({
       firstName: emp.firstName || '',
       lastName: emp.lastName || '',
       identityNumber: emp.identityNumber || '',
-      phoneNumber: emp.phoneNumber || '',
+      phoneNumber: emp.phoneNumber || '+90',
       email: emp.email || '',
       branchId: emp.branchId || '',
       department: emp.department || '',
       title: emp.title || '',
       bloodGroup: emp.bloodGroup || '0 Rh(+)',
       emergencyContactName: emp.emergencyContactName || '',
-      emergencyContactPhone: emp.emergencyContactPhone || '',
+      emergencyContactPhone: emp.emergencyContactPhone || '+90',
       emergencyContactRelation: emp.emergencyContactRelation || 'Eşi',
       birthDate: emp.birthDate ? emp.birthDate.split('T')[0] : '1990-01-01',
       educationLevel: emp.educationLevel || 'Lisans',
@@ -579,14 +600,14 @@ export const PersonelListesi: React.FC = () => {
       firstName: cleanFirstName,
       lastName: cleanLastName,
       identityNumber: cleanTckn,
-      phoneNumber: formData.phoneNumber.trim(),
+      phoneNumber: !formData.phoneNumber || formData.phoneNumber.trim() === '+90' ? '' : formData.phoneNumber.trim(),
       email: formData.email.trim(),
       branchId: formData.branchId,
       department: formData.department.trim(),
       title: formData.title.trim(),
       bloodGroup: formData.bloodGroup,
       emergencyContactName: formData.emergencyContactName.trim(),
-      emergencyContactPhone: formData.emergencyContactPhone.trim(),
+      emergencyContactPhone: !formData.emergencyContactPhone || formData.emergencyContactPhone.trim() === '+90' ? '' : formData.emergencyContactPhone.trim(),
       emergencyContactRelation: formData.emergencyContactRelation.trim(),
       birthDate: formData.birthDate,
       educationLevel: formData.educationLevel,
@@ -894,23 +915,14 @@ export const PersonelListesi: React.FC = () => {
           const cleanPhone = phone.replace(/\D/g, '');
 
           return (
-            <div className="flex items-center gap-1.5 py-1">
-              <button
-                type="button"
-                onClick={() => setDetailEmployee(data)}
-                title="Personel Kart Detayını İncele"
-                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded transition-colors cursor-pointer"
-              >
-                <FileText className="w-3 h-3" />
-                Kartı Aç
-              </button>
+            <div className="flex items-center gap-1.5 py-1 whitespace-nowrap">
               <button
                 type="button"
                 onClick={() => params.context.handleOpenEdit(data)}
                 title="Personeli Düzenle"
-                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded transition-colors cursor-pointer shrink-0 shadow-2xs"
               >
-                <Pencil className="w-3 h-3 text-stone-500" />
+                <Pencil className="w-3.5 h-3.5 text-stone-500" />
                 Düzenle
               </button>
               {cleanPhone ? (
@@ -919,9 +931,9 @@ export const PersonelListesi: React.FC = () => {
                   target="_blank"
                   rel="noreferrer"
                   title="WhatsApp Mesajı Gönder"
-                  className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors shadow-xs"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors shadow-2xs shrink-0"
                 >
-                  <MessageSquare className="w-3 h-3" />
+                  <MessageSquare className="w-3.5 h-3.5" />
                   WhatsApp
                 </a>
               ) : null}
@@ -929,7 +941,7 @@ export const PersonelListesi: React.FC = () => {
                 type="button"
                 onClick={() => setEmployeeToDelete(data)}
                 title="Personeli Sil"
-                className="p-1 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded border border-transparent hover:border-rose-200 transition-colors cursor-pointer ml-auto"
+                className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded border border-transparent hover:border-rose-200 transition-colors cursor-pointer shrink-0 ml-0.5"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -960,7 +972,7 @@ export const PersonelListesi: React.FC = () => {
     []
   );
 
-  const onGridReady = (params: GridReadyEvent<Employee>) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent<Employee>) => {
     setGridApi(params.api);
     const savedState = localStorage.getItem(GRID_STORAGE_KEY);
     if (savedState) {
@@ -982,11 +994,11 @@ export const PersonelListesi: React.FC = () => {
         console.error('Kolon durumu yüklenirken hata oluştu:', e);
       }
     }
-  };
+  }, []);
 
   const [gridColumnsRevision, setGridColumnsRevision] = useState<number>(0);
 
-  const onSaveGridState = useCallback(() => {
+  const onSaveGridState = React.useCallback(() => {
     if (gridRef.current?.api) {
       try {
         const state = gridRef.current.api.getColumnState();
@@ -1524,11 +1536,18 @@ export const PersonelListesi: React.FC = () => {
                   <div>
                     <label className="block text-xs font-semibold text-stone-700 mb-1">Cep Telefonu</label>
                     <input
-                      type="text"
+                      type="tel"
+                      inputMode="tel"
+                      maxLength={19}
                       value={formData.phoneNumber}
-                      onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                      placeholder="+90 (555) 000 00 00"
+                      onFocus={() => {
+                        if (!formData.phoneNumber || formData.phoneNumber.trim() === '') {
+                          setFormData((prev) => ({ ...prev, phoneNumber: '+90' }));
+                        }
+                      }}
+                      onChange={(e) => setFormData({ ...formData, phoneNumber: formatPhoneNumber(e.target.value) })}
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-xs text-stone-800 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors font-mono"
+                      placeholder="+90 (5XX) XXX XX XX"
                     />
                   </div>
                   <div>
@@ -1705,13 +1724,20 @@ export const PersonelListesi: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">Telefon</label>
+                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">Acil Durum Telefonu</label>
                         <input
-                          type="text"
+                          type="tel"
+                          inputMode="tel"
+                          maxLength={19}
                           value={formData.emergencyContactPhone}
-                          onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
-                          className="w-full px-3 py-1.5 border border-stone-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                          placeholder="+90 532 000 00 00"
+                          onFocus={() => {
+                            if (!formData.emergencyContactPhone || formData.emergencyContactPhone.trim() === '') {
+                              setFormData((prev) => ({ ...prev, emergencyContactPhone: '+90' }));
+                            }
+                          }}
+                          onChange={(e) => setFormData({ ...formData, emergencyContactPhone: formatPhoneNumber(e.target.value) })}
+                          className="w-full px-3 py-1.5 border border-stone-200 rounded-lg text-xs bg-white text-stone-800 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors font-mono"
+                          placeholder="+90 (5XX) XXX XX XX"
                         />
                       </div>
                       <div>

@@ -131,7 +131,7 @@ export const ModulesOverview: React.FC<ModulesOverviewProps> = ({ onSelectTab })
     },
     {
       id: 'stocks',
-      name: 'Ürün & Stok Depo',
+      name: 'Ürün & Stok & Depo',
       tableName: 'products & product_stocks',
       icon: Package,
       color: 'blue',

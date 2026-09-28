@@ -3,7 +3,6 @@ import React, {
   useEffect,
   useMemo,
   useRef,
-  useCallback,
 } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { appTheme } from '../../lib/agGridTheme';
@@ -94,12 +93,12 @@ export const MusteriListesi: React.FC = () => {
   const [gridColumnsRevision, setGridColumnsRevision] = useState<number>(0);
   const timerRef = useRef<number[]>([]);
 
-  const clearFeedbackTimers = useCallback(() => {
+  const clearFeedbackTimers = React.useCallback(() => {
     timerRef.current.forEach((id) => window.clearTimeout(id));
     timerRef.current = [];
   }, []);
 
-  const scheduleFeedback = useCallback((message: string, duration = 4000) => {
+  const scheduleFeedback = React.useCallback((message: string, duration = 4000) => {
     setFeedbackMessage(message);
     const id = window.setTimeout(() => {
       setFeedbackMessage(null);
@@ -184,7 +183,7 @@ export const MusteriListesi: React.FC = () => {
     accountRepresentative: '',
     referenceInfo: '',
     mobilePhone1: '+90',
-    mobilePhone2: '',
+    mobilePhone2: '+90',
     homePhone: '',
     workPhone: '',
     email: '',
@@ -213,7 +212,7 @@ export const MusteriListesi: React.FC = () => {
     notes: '',
   });
 
-  const getBranchName = useCallback(
+  const getBranchName = React.useCallback(
     (branchId: string) => {
       const found = branches.find((b) => b.id === branchId);
       return found ? found.name : 'Bilinmeyen Şube';
@@ -241,19 +240,21 @@ export const MusteriListesi: React.FC = () => {
     if (!digits) return '';
     let clean = digits;
     if (clean.startsWith('90')) clean = clean.slice(2);
-    if (clean.startsWith('0')) clean = clean.slice(1);
+    else if (clean.startsWith('0')) clean = clean.slice(1);
     if (clean.length === 10) {
       return `+90 (${clean.slice(0, 3)}) ${clean.slice(3, 6)} ${clean.slice(6, 8)} ${clean.slice(8, 10)}`;
+    }
+    if (clean.length > 0) {
+      return normalizePhoneInput(clean);
     }
     return `+${clean}`;
   };
 
   const normalizePhoneInput = (value: string): string => {
-    const digits = value.replace(/\D/g, '').slice(0, 10);
-    if (!digits) return '';
-    let clean = digits;
+    let clean = value.replace(/\D/g, '');
     if (clean.startsWith('90')) clean = clean.slice(2);
-    if (clean.startsWith('0')) clean = clean.slice(1);
+    else if (clean.startsWith('0')) clean = clean.slice(1);
+    clean = clean.slice(0, 10);
     if (!clean) return '+90';
     if (clean.length <= 3) return `+90 (${clean}`;
     if (clean.length <= 6) return `+90 (${clean.slice(0, 3)}) ${clean.slice(3)}`;
@@ -264,14 +265,15 @@ export const MusteriListesi: React.FC = () => {
   const formatPhoneNumber = (val: string): string => {
     if (!val) return '';
     const trimmed = val.trim();
-    if (!trimmed || trimmed === '+') return '';
+    if (!trimmed || trimmed === '+' || trimmed === '+9') return '';
+    if (trimmed === '+90' || trimmed === '+90 ') return '+90';
     if (trimmed.startsWith('+') && !trimmed.startsWith('+90')) {
       return trimmed;
     }
     return normalizePhoneInput(trimmed);
   };
 
-  const computeAddress = useCallback((c: Partial<Contact> | typeof newContact) => {
+  const computeAddress = React.useCallback((c: Partial<Contact> | typeof newContact) => {
     const parts: string[] = [];
     if (c.neighborhoodId) {
       const hood = String(c.neighborhoodId).trim();
@@ -300,7 +302,7 @@ export const MusteriListesi: React.FC = () => {
     return parts.filter(Boolean).join(' ');
   }, []);
 
-  const loadData = useCallback(async () => {
+  const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
       const response = await fxApi.getContacts();
@@ -337,7 +339,7 @@ export const MusteriListesi: React.FC = () => {
     }
   };
 
-  const onSaveGridState = useCallback(() => {
+  const onSaveGridState = React.useCallback(() => {
     if (gridRef.current?.api) {
       const columnState = gridRef.current.api.getColumnState();
       localStorage.setItem(GRID_STORAGE_KEY, JSON.stringify(columnState));
@@ -408,7 +410,7 @@ export const MusteriListesi: React.FC = () => {
     });
   }, [contacts, selectedBranchId, quickFilterText, contactTypes]);
 
-  const validateContactForm = useCallback(
+  const validateContactForm = React.useCallback(
     (excludeId?: string): string | null => {
       if (!newContact.title.trim()) {
         return 'Lütfen Cari Ünvan (Firma/Şahıs Adı) alanını doldurunuz.';
@@ -442,6 +444,11 @@ export const MusteriListesi: React.FC = () => {
         return 'Lütfen geçerli bir Cep Telefonu 1 numarası giriniz.';
       }
 
+      const phone2 = (newContact.mobilePhone2 || '').trim();
+      if (phone2 && phone2 !== '+90' && phone2.replace(/\D/g, '').length < 10) {
+        return 'Lütfen geçerli bir Cep Telefonu 2 numarası giriniz (en az 10 hane) veya alanı boş bırakınız.';
+      }
+
       const emailCandidate = newContact.email.trim();
       if (emailCandidate) {
         const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -457,7 +464,7 @@ export const MusteriListesi: React.FC = () => {
     [contacts, newContact]
   );
 
-  const handleOpenCreateModal = useCallback(() => {
+  const handleOpenCreateModal = React.useCallback(() => {
     setEditingContactId(null);
     const defaultBranch =
       selectedBranchId !== 'all'
@@ -474,16 +481,16 @@ export const MusteriListesi: React.FC = () => {
       accountRepresentative: '',
       referenceInfo: '',
       mobilePhone1: '+90',
-      mobilePhone2: '',
+      mobilePhone2: '+90',
       homePhone: '',
       workPhone: '',
       email: '',
       website: '',
       addressType: 'Fatura Adresi',
       isDefaultAddress: true,
-      cityId: 34,
-      districtId: '',
-      neighborhoodId: '',
+      cityId: 35,
+      districtId: 'Bornova',
+      neighborhoodId: 'Zafer Mah.',
       streetLine: '',
       doorNumber: '',
       apartmentNumber: '',
@@ -507,7 +514,7 @@ export const MusteriListesi: React.FC = () => {
     setIsModalOpen(true);
   }, [branches, selectedBranchId]);
 
-  const handleOpenEditModal = useCallback((contact: Contact) => {
+  const handleOpenEditModal = React.useCallback((contact: Contact) => {
     setEditingContactId(contact.id);
     setNewContact({
       code: contact.code || '',
@@ -518,10 +525,10 @@ export const MusteriListesi: React.FC = () => {
       authorizedPerson: contact.authorizedPerson || '',
       accountRepresentative: contact.accountRepresentative || '',
       referenceInfo: contact.referenceInfo || '',
-      mobilePhone1: contact.mobilePhone1 || '+90',
-      mobilePhone2: contact.mobilePhone2 || '',
-      homePhone: contact.homePhone || '',
-      workPhone: contact.workPhone || '',
+      mobilePhone1: contact.mobilePhone1 ? formatPhoneNumber(contact.mobilePhone1) : '+90',
+      mobilePhone2: contact.mobilePhone2 ? formatPhoneNumber(contact.mobilePhone2) : '',
+      homePhone: contact.homePhone ? formatPhoneNumber(contact.homePhone) : '',
+      workPhone: contact.workPhone ? formatPhoneNumber(contact.workPhone) : '',
       email: contact.email || '',
       website: contact.website || '',
       addressType: contact.addressType || 'Fatura Adresi',
@@ -916,19 +923,19 @@ export const MusteriListesi: React.FC = () => {
       },
       {
         headerName: 'İşlemler',
-        minWidth: 205,
-        width: 210,
+        minWidth: 245,
+        width: 250,
         pinned: 'right',
         cellRenderer: (params: ICellRendererParams<Contact>) => {
           const data = params.data;
           if (!data) return null;
           return (
-            <div className="flex items-center gap-1.5 py-1">
+            <div className="flex items-center gap-1.5 py-1 whitespace-nowrap">
               <button
                 type="button"
                 onClick={() => handleOpenEditModal(data)}
                 title="Cari Kartını İncele & Düzenle"
-                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded transition-colors cursor-pointer shrink-0"
               >
                 <FileText className="w-3 h-3" />
                 Kartı Aç
@@ -937,7 +944,7 @@ export const MusteriListesi: React.FC = () => {
                 type="button"
                 onClick={() => handleWhatsApp(data.mobilePhone1)}
                 title="WhatsApp Sohbeti Başlat"
-                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors shadow-xs cursor-pointer shrink-0"
               >
                 <MessageSquare className="w-3 h-3" />
                 WhatsApp
@@ -945,7 +952,7 @@ export const MusteriListesi: React.FC = () => {
               <button
                 type="button"
                 onClick={() => scheduleFeedback(`${data.title} için cari hesap ekstresi açılıyor...`, 3500)}
-                className="px-2 py-1 text-[11px] text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded border border-stone-200 transition-colors cursor-pointer"
+                className="px-2 py-1 text-[11px] text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded border border-stone-200 transition-colors cursor-pointer shrink-0"
               >
                 Ekstre
               </button>
@@ -975,7 +982,7 @@ export const MusteriListesi: React.FC = () => {
     []
   );
 
-  const onGridReady = (params: GridReadyEvent<Contact>) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent<Contact>) => {
     setGridApi(params.api);
     const savedState = localStorage.getItem(GRID_STORAGE_KEY);
     if (savedState) {
@@ -992,7 +999,7 @@ export const MusteriListesi: React.FC = () => {
         console.error('Kolon durumu yüklenirken hata oluştu:', e);
       }
     }
-  };
+  }, []);
 
   const handleQuickFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setQuickFilterText(e.target.value);
@@ -1376,18 +1383,19 @@ export const MusteriListesi: React.FC = () => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="bg-[#0B132B] border border-slate-800 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-in">
-            <div className="bg-[#0B132B] border-b border-slate-800/90 px-6 py-4 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white border border-stone-200 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150">
+            {/* Modal Başlığı */}
+            <div className="bg-stone-50/80 border-b border-stone-200 px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-2xs">
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white tracking-tight">
+                  <h3 className="text-base font-bold text-stone-900 tracking-tight">
                     {editingContactId ? 'Cari Kartını İncele & Düzenle' : 'Yeni Cari Kartı Oluştur'}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-stone-500">
                     {editingContactId
                       ? `${newContact.code} • ${newContact.title || 'Seçili Cari'}`
                       : 'AG Grid tablosu ve veritabanı ile tam uyumlu veri girişi'}
@@ -1395,11 +1403,11 @@ export const MusteriListesi: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => handleSaveContact()}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
                   {editingContactId ? 'Güncellemeleri Kaydet' : 'Kaydet'}
@@ -1410,21 +1418,22 @@ export const MusteriListesi: React.FC = () => {
                     setIsModalOpen(false);
                     setEditingContactId(null);
                   }}
-                  className="text-slate-400 hover:text-white p-1.5 hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+                  className="text-stone-400 hover:text-stone-700 p-1.5 hover:bg-stone-200/60 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center px-6 border-b border-slate-800/80 bg-[#0B132B]">
+            {/* Form Sekmeleri */}
+            <div className="flex items-center px-6 border-b border-stone-200 bg-white">
               <button
                 type="button"
                 onClick={() => setActiveFormTab('genel')}
                 className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold transition-all border-b-2 -mb-px cursor-pointer ${
                   activeFormTab === 'genel'
-                    ? 'border-blue-500 text-blue-400 bg-blue-950/30'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                    : 'border-transparent text-stone-500 hover:text-stone-800'
                 }`}
               >
                 <User className="w-4 h-4" />
@@ -1435,8 +1444,8 @@ export const MusteriListesi: React.FC = () => {
                 onClick={() => setActiveFormTab('adres')}
                 className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold transition-all border-b-2 -mb-px cursor-pointer ${
                   activeFormTab === 'adres'
-                    ? 'border-blue-500 text-blue-400 bg-blue-950/30'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                    : 'border-transparent text-stone-500 hover:text-stone-800'
                 }`}
               >
                 <MapPin className="w-4 h-4" />
@@ -1447,8 +1456,8 @@ export const MusteriListesi: React.FC = () => {
                 onClick={() => setActiveFormTab('finans')}
                 className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold transition-all border-b-2 -mb-px cursor-pointer ${
                   activeFormTab === 'finans'
-                    ? 'border-blue-500 text-blue-400 bg-blue-950/30'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                    : 'border-transparent text-stone-500 hover:text-stone-800'
                 }`}
               >
                 <CreditCard className="w-4 h-4" />
@@ -1456,29 +1465,29 @@ export const MusteriListesi: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveContact} className="p-6 overflow-y-auto max-h-[75vh] space-y-4 bg-[#0B132B] text-white">
+            <form onSubmit={handleSaveContact} className="p-6 overflow-y-auto max-h-[75vh] space-y-4 bg-white text-stone-800">
               {activeFormTab === 'genel' && (
                 <div className="space-y-4 animate-in fade-in duration-200">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Cari Kodu *</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Cari Kodu *</label>
                       <input
                         type="text"
                         required
                         value={newContact.code}
                         onChange={(e) => setNewContact({ ...newContact, code: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                         placeholder="Örn: CAR-001"
                       />
                     </div>
 
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-medium text-slate-300">Cari Türü *</label>
+                        <label className="text-xs font-semibold text-stone-700">Cari Türü *</label>
                         <button
                           type="button"
                           onClick={() => setIsContactTypeModalOpen(true)}
-                          className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
                         >
                           + Ekle
                         </button>
@@ -1486,10 +1495,10 @@ export const MusteriListesi: React.FC = () => {
                       <select
                         value={newContact.contactTypeId}
                         onChange={(e) => setNewContact({ ...newContact, contactTypeId: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors cursor-pointer"
                       >
                         {contactTypes.map((type) => (
-                          <option key={type.id} value={type.id} className="bg-slate-900 text-white">
+                          <option key={type.id} value={type.id}>
                             {type.name}
                           </option>
                         ))}
@@ -1497,14 +1506,14 @@ export const MusteriListesi: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Kayıtlı Şube *</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Kayıtlı Şube *</label>
                       <select
                         value={newContact.branchId}
                         onChange={(e) => setNewContact({ ...newContact, branchId: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors cursor-pointer"
                       >
                         {branches.map((b) => (
-                          <option key={b.id} value={b.id} className="bg-slate-900 text-white">
+                          <option key={b.id} value={b.id}>
                             {b.name} {b.isHeadquarter ? '(Merkez)' : ''}
                           </option>
                         ))}
@@ -1513,57 +1522,71 @@ export const MusteriListesi: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">Cari Ünvan (Firma/Şahıs Adı) *</label>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1.5">Cari Ünvan (Firma/Şahıs Adı) *</label>
                     <input
                       type="text"
                       required
                       value={newContact.title}
                       onChange={(e) => setNewContact({ ...newContact, title: e.target.value })}
-                      className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors font-semibold"
+                      className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors font-semibold"
                       placeholder="Resmi Ünvan"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Yetkili Kişi Adı Soyadı</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Yetkili Kişi Adı Soyadı</label>
                       <input
                         type="text"
                         value={newContact.authorizedPerson}
                         onChange={(e) => setNewContact({ ...newContact, authorizedPerson: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Referans</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Referans</label>
                       <input
                         type="text"
                         value={newContact.referenceInfo}
                         onChange={(e) => setNewContact({ ...newContact, referenceInfo: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Cep Telefonu 1 *</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Cep Telefonu 1 *</label>
                       <input
                         type="tel"
+                        inputMode="tel"
+                        maxLength={19}
                         required
                         value={newContact.mobilePhone1}
+                        onFocus={() => {
+                          if (!newContact.mobilePhone1 || newContact.mobilePhone1.trim() === '') {
+                            setNewContact((prev) => ({ ...prev, mobilePhone1: '+90' }));
+                          }
+                        }}
                         onChange={(e) => setNewContact({ ...newContact, mobilePhone1: formatPhoneNumber(e.target.value) })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors font-mono"
                         placeholder="+90 (5XX) XXX XX XX"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Cep Telefonu 2</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Cep Telefonu 2</label>
                       <input
                         type="tel"
+                        inputMode="tel"
+                        maxLength={19}
                         value={newContact.mobilePhone2}
+                        onFocus={() => {
+                          if (!newContact.mobilePhone2 || newContact.mobilePhone2.trim() === '') {
+                            setNewContact((prev) => ({ ...prev, mobilePhone2: '+90' }));
+                          }
+                        }}
                         onChange={(e) => setNewContact({ ...newContact, mobilePhone2: formatPhoneNumber(e.target.value) })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors font-mono"
                         placeholder="+90 (5XX) XXX XX XX"
                       />
                     </div>
@@ -1571,71 +1594,71 @@ export const MusteriListesi: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Ev Telefonu</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Ev Telefonu</label>
                       <input
                         type="tel"
                         value={newContact.homePhone}
                         onChange={(e) => setNewContact({ ...newContact, homePhone: formatPhoneNumber(e.target.value) })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">İş Telefonu</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">İş Telefonu</label>
                       <input
                         type="tel"
                         value={newContact.workPhone}
                         onChange={(e) => setNewContact({ ...newContact, workPhone: formatPhoneNumber(e.target.value) })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors font-mono"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">E-Posta Adresi</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">E-Posta Adresi</label>
                       <input
                         type="email"
                         value={newContact.email}
                         onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                         placeholder="ornek@firma.com"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Web Sitesi</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Web Sitesi</label>
                       <input
                         type="text"
                         value={newContact.website}
                         onChange={(e) => setNewContact({ ...newContact, website: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                         placeholder="www.firma.com"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-800/80">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-stone-200">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Cari Durumu</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Cari Durumu</label>
                       <select
                         value={newContact.status}
                         onChange={(e) => setNewContact({ ...newContact, status: e.target.value as ContactStatus })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors cursor-pointer"
                       >
-                        <option value="ACTIVE" className="bg-slate-900 text-white">Aktif</option>
-                        <option value="PASSIVE" className="bg-slate-900 text-white">Pasif</option>
-                        <option value="LEAD" className="bg-slate-900 text-white">Potansiyel (Lead)</option>
+                        <option value="ACTIVE">Aktif</option>
+                        <option value="PASSIVE">Pasif</option>
+                        <option value="LEAD">Potansiyel (Lead)</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Müşteri Temsilcisi</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Müşteri Temsilcisi</label>
                       <select
                         value={newContact.accountRepresentative}
                         onChange={(e) => setNewContact({ ...newContact, accountRepresentative: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors cursor-pointer"
                       >
-                        <option value="" className="bg-slate-900 text-slate-400">Seçiniz...</option>
+                        <option value="">Seçiniz...</option>
                         {employees.map((emp) => (
-                          <option key={emp.id} value={`${emp.firstName} ${emp.lastName}`} className="bg-slate-900 text-white">
+                          <option key={emp.id} value={`${emp.firstName} ${emp.lastName}`}>
                             {emp.firstName} {emp.lastName}
                           </option>
                         ))}
@@ -1650,11 +1673,11 @@ export const MusteriListesi: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-medium text-slate-300">Adres Tipi *</label>
+                        <label className="text-xs font-semibold text-stone-700">Adres Tipi *</label>
                         <button
                           type="button"
                           onClick={() => setIsAddressTypeModalOpen(true)}
-                          className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
                         >
                           + Ekle / Yönet
                         </button>
@@ -1662,10 +1685,10 @@ export const MusteriListesi: React.FC = () => {
                       <select
                         value={newContact.addressType}
                         onChange={(e) => setNewContact({ ...newContact, addressType: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors cursor-pointer"
                       >
                         {addressTypes.map((type) => (
-                          <option key={type} value={type} className="bg-slate-900 text-white">
+                          <option key={type} value={type}>
                             {type}
                           </option>
                         ))}
@@ -1673,12 +1696,12 @@ export const MusteriListesi: React.FC = () => {
                     </div>
 
                     <div className="flex items-center md:pt-6">
-                      <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-200 select-none">
+                      <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-stone-700 select-none">
                         <input
                           type="checkbox"
                           checked={newContact.isDefaultAddress}
                           onChange={(e) => setNewContact({ ...newContact, isDefaultAddress: e.target.checked })}
-                          className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                          className="w-4 h-4 rounded text-indigo-600 bg-white border-stone-300 focus:ring-indigo-500 cursor-pointer"
                         />
                         <span>Bu Adresi Birincil / Varsayılan Adres Yap</span>
                       </label>
@@ -1687,22 +1710,24 @@ export const MusteriListesi: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Şehir *</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Şehir *</label>
                       <select
                         value={newContact.cityId}
                         onChange={(e) => {
                           const cid = Number(e.target.value);
                           const dists = geoService.getDistricts(cid);
                           const firstDist = dists.length > 0 ? dists[0] : '';
+                          const hoods = firstDist ? geoService.getNeighborhoods(cid, firstDist) : [];
+                          const firstHood = hoods.length > 0 ? hoods[0] : '';
                           setNewContact((prev) => {
-                            const updated = { ...prev, cityId: cid, districtId: firstDist, neighborhoodId: '' };
+                            const updated = { ...prev, cityId: cid, districtId: firstDist, neighborhoodId: firstHood };
                             return { ...updated, formattedAddress: computeAddress(updated) };
                           });
                         }}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors cursor-pointer"
                       >
                         {sortedCities.map((city) => (
-                          <option key={city.id} value={city.id} className="bg-slate-900 text-white">
+                          <option key={city.id} value={city.id}>
                             {city.name}
                           </option>
                         ))}
@@ -1710,28 +1735,30 @@ export const MusteriListesi: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">İlçe *</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">İlçe *</label>
                       <select
                         value={newContact.districtId}
                         onChange={(e) => {
                           const dist = e.target.value;
+                          const hoods = dist ? geoService.getNeighborhoods(newContact.cityId, dist) : [];
+                          const firstHood = hoods.length > 0 ? hoods[0] : '';
                           setNewContact((prev) => {
-                            const updated = { ...prev, districtId: dist, neighborhoodId: '' };
+                            const updated = { ...prev, districtId: dist, neighborhoodId: firstHood };
                             return { ...updated, formattedAddress: computeAddress(updated) };
                           });
                         }}
                         disabled={!newContact.cityId}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 disabled:opacity-40 transition-colors cursor-pointer"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 disabled:opacity-40 transition-colors cursor-pointer"
                       >
-                        <option value="" className="bg-slate-900 text-white">İlçe Seçiniz...</option>
+                        <option value="">İlçe Seçiniz...</option>
                         {currentDistricts.map((d) => (
-                          <option key={d} value={d} className="bg-slate-900 text-white">{d}</option>
+                          <option key={d} value={d}>{d}</option>
                         ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Mahalle *</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Mahalle *</label>
                       <select
                         value={newContact.neighborhoodId}
                         onChange={(e) => {
@@ -1741,12 +1768,15 @@ export const MusteriListesi: React.FC = () => {
                             return { ...updated, formattedAddress: computeAddress(updated) };
                           });
                         }}
-                        disabled={!newContact.districtId}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 disabled:opacity-40 transition-colors cursor-pointer"
+                        disabled={!newContact.districtId || currentNeighborhoods.length === 0}
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 disabled:opacity-40 transition-colors cursor-pointer"
                       >
-                        <option value="" className="bg-slate-900 text-white">Mahalle Seçiniz...</option>
+                        <option value="">{newContact.districtId ? (currentNeighborhoods.length > 0 ? 'Mahalle Seçiniz...' : 'Mahalle Bulunamadı') : 'Önce İlçe Seçiniz...'}</option>
+                        {newContact.neighborhoodId && !currentNeighborhoods.includes(newContact.neighborhoodId) && (
+                          <option value={newContact.neighborhoodId}>{newContact.neighborhoodId}</option>
+                        )}
                         {currentNeighborhoods.map((n) => (
-                          <option key={n} value={n} className="bg-slate-900 text-white">{n}</option>
+                          <option key={n} value={n}>{n}</option>
                         ))}
                       </select>
                     </div>
@@ -1754,7 +1784,7 @@ export const MusteriListesi: React.FC = () => {
 
                   <div className="grid grid-cols-12 gap-4">
                     <div className="col-span-12 md:col-span-7">
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Sokak / Cadde / Bulvar *</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Sokak / Cadde / Bulvar *</label>
                       <input
                         type="text"
                         value={newContact.streetLine}
@@ -1766,12 +1796,12 @@ export const MusteriListesi: React.FC = () => {
                           });
                         }}
                         placeholder="1024 Sokak"
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
 
                     <div className="col-span-6 md:col-span-2">
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Kapı No *</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Kapı No *</label>
                       <input
                         type="text"
                         value={newContact.doorNumber}
@@ -1783,12 +1813,12 @@ export const MusteriListesi: React.FC = () => {
                           });
                         }}
                         placeholder="12"
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
 
                     <div className="col-span-6 md:col-span-3">
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Daire No</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Daire No</label>
                       <input
                         type="text"
                         value={newContact.apartmentNumber}
@@ -1800,14 +1830,14 @@ export const MusteriListesi: React.FC = () => {
                           });
                         }}
                         placeholder="4"
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Apartman Adı</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Apartman Adı</label>
                       <input
                         type="text"
                         value={newContact.buildingName}
@@ -1819,11 +1849,11 @@ export const MusteriListesi: React.FC = () => {
                           });
                         }}
                         placeholder="Filtrex Plaza"
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Blok Adı</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Blok Adı</label>
                       <input
                         type="text"
                         value={newContact.blockName}
@@ -1835,11 +1865,11 @@ export const MusteriListesi: React.FC = () => {
                           });
                         }}
                         placeholder="A Blok"
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Site Adı</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Site Adı</label>
                       <input
                         type="text"
                         value={newContact.siteName}
@@ -1851,7 +1881,7 @@ export const MusteriListesi: React.FC = () => {
                           });
                         }}
                         placeholder="Buca Organize Sanayi Sitesi"
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                   </div>
@@ -1859,11 +1889,11 @@ export const MusteriListesi: React.FC = () => {
                   <div className="space-y-2 pt-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <label className="text-xs font-medium text-slate-300">Birleştirilmiş Resmi Adres (Google Haritalar Uyumlu)</label>
+                        <label className="text-xs font-semibold text-stone-700">Birleştirilmiş Resmi Adres (Google Haritalar Uyumlu)</label>
                         <button
                           type="button"
                           onClick={handleOpenGoogleMaps}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                         >
                           <MapPin className="w-3.5 h-3.5" />
                           Haritada Aç
@@ -1872,7 +1902,7 @@ export const MusteriListesi: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setNewContact((prev) => ({ ...prev, formattedAddress: computeAddress(prev) }))}
-                        className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
+                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
                       >
                         <RotateCw className="w-3.5 h-3.5" />
                         Otomatik Yenile
@@ -1884,7 +1914,7 @@ export const MusteriListesi: React.FC = () => {
                       value={newContact.formattedAddress}
                       onChange={(e) => setNewContact({ ...newContact, formattedAddress: e.target.value })}
                       placeholder="Buca OSB Mah. 1024 Sokak Buca Organize Sanayi Sitesi No:12 Buca / İzmir"
-                      className="w-full bg-[#070B19] border border-slate-700/80 rounded-lg p-3 text-xs font-mono text-slate-200 resize-none min-h-[72px] focus:outline-none focus:border-blue-500 leading-relaxed"
+                      className="w-full bg-stone-50 border border-stone-300 rounded-lg p-3 text-xs font-mono text-stone-800 resize-none min-h-[72px] focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 leading-relaxed"
                     />
                   </div>
                 </div>
@@ -1894,46 +1924,46 @@ export const MusteriListesi: React.FC = () => {
                 <div className="space-y-4 animate-in fade-in duration-200">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Vergi Numarası</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Vergi Numarası</label>
                       <input
                         type="text"
                         maxLength={10}
                         value={newContact.taxNumber}
                         onChange={(e) => setNewContact({ ...newContact, taxNumber: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors font-mono"
                         placeholder="10 hane"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Vergi Dairesi</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Vergi Dairesi</label>
                       <input
                         type="text"
                         value={newContact.taxOffice}
                         onChange={(e) => setNewContact({ ...newContact, taxOffice: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">T.C. Kimlik No</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">T.C. Kimlik No</label>
                       <input
                         type="text"
                         maxLength={11}
                         value={newContact.tcNumber}
                         onChange={(e) => setNewContact({ ...newContact, tcNumber: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors font-mono"
                         placeholder="11 hane"
                       />
                     </div>
                     <div className="flex items-center md:pt-6">
-                      <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-200 select-none">
+                      <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-stone-700 select-none">
                         <input
                           type="checkbox"
                           checked={newContact.isEinvoiceTaxpayer}
                           onChange={(e) => setNewContact({ ...newContact, isEinvoiceTaxpayer: e.target.checked })}
-                          className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                          className="w-4 h-4 rounded text-indigo-600 bg-white border-stone-300 focus:ring-indigo-500 cursor-pointer"
                         />
                         <span>E-Fatura Mükellefi</span>
                       </label>
@@ -1942,80 +1972,80 @@ export const MusteriListesi: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Açılış Bakiyesi</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Açılış Bakiyesi</label>
                       <input
                         type="number"
                         value={newContact.openingBalance}
                         onChange={(e) => setNewContact({ ...newContact, openingBalance: Number(e.target.value) })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-blue-400 font-mono focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-indigo-700 font-mono focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Para Birimi</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Para Birimi</label>
                       <select
                         value={newContact.currency}
                         onChange={(e) => setNewContact({ ...newContact, currency: e.target.value })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors cursor-pointer"
                       >
-                        <option value="TRY" className="bg-slate-900 text-white">₺ TRY</option>
-                        <option value="USD" className="bg-slate-900 text-white">$ USD</option>
-                        <option value="EUR" className="bg-slate-900 text-white">€ EUR</option>
-                        <option value="GBP" className="bg-slate-900 text-white">£ GBP</option>
+                        <option value="TRY">₺ TRY</option>
+                        <option value="USD">$ USD</option>
+                        <option value="EUR">€ EUR</option>
+                        <option value="GBP">£ GBP</option>
                       </select>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Kredi Risk Limiti (₺)</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Kredi Risk Limiti (₺)</label>
                       <input
                         type="number"
                         value={newContact.creditRiskLimit}
                         onChange={(e) => setNewContact({ ...newContact, creditRiskLimit: Number(e.target.value) })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-red-400 font-mono font-semibold focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-rose-600 font-mono font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5">Varsayılan Vade Gün</label>
+                      <label className="block text-xs font-semibold text-stone-700 mb-1.5">Varsayılan Vade Gün</label>
                       <input
                         type="number"
                         value={newContact.defaultPaymentTermsDays}
                         onChange={(e) => setNewContact({ ...newContact, defaultPaymentTermsDays: Number(e.target.value) })}
-                        className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">İskonto Tutarı (₺ veya %)</label>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1.5">İskonto Tutarı (₺ veya %)</label>
                     <input
                       type="number"
                       value={newContact.defaultDiscountAmount}
                       onChange={(e) => setNewContact({ ...newContact, defaultDiscountAmount: Number(e.target.value) })}
-                      className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
+                      className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">Cari Açıklama / Notlar</label>
+                    <label className="block text-xs font-semibold text-stone-700 mb-1.5">Cari Açıklama / Notlar</label>
                     <textarea
                       rows={2}
                       value={newContact.notes}
                       onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })}
-                      className="w-full bg-[#0B132B] border border-slate-700/80 rounded-lg p-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                      className="w-full bg-white border border-stone-300 rounded-lg p-3 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-colors"
                       placeholder="Cari hakkında özel notlar..."
                     />
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-4 border-t border-slate-800/80 mt-2">
+              <div className="flex items-center justify-between pt-4 border-t border-stone-200 mt-2">
                 <div>
                   {activeFormTab === 'adres' && (
                     <button
                       type="button"
                       onClick={() => setActiveFormTab('genel')}
-                      className="px-4 py-2 bg-slate-800 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+                      className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer border border-stone-200"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       Önceki: Genel Bilgiler
@@ -2025,7 +2055,7 @@ export const MusteriListesi: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setActiveFormTab('adres')}
-                      className="px-4 py-2 bg-slate-800 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+                      className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer border border-stone-200"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       Önceki: Adres Bilgileri
@@ -2040,7 +2070,7 @@ export const MusteriListesi: React.FC = () => {
                       setIsModalOpen(false);
                       setEditingContactId(null);
                     }}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                    className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium transition-colors cursor-pointer border border-stone-200"
                   >
                     İptal
                   </button>
@@ -2049,7 +2079,7 @@ export const MusteriListesi: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setActiveFormTab('adres')}
-                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
                     >
                       Sonraki: Adres Bilgileri
                       <ChevronRight className="w-4 h-4" />
@@ -2060,7 +2090,7 @@ export const MusteriListesi: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setActiveFormTab('finans')}
-                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
                     >
                       Sonraki: Finansal Bilgiler
                       <ChevronRight className="w-4 h-4" />
@@ -2070,7 +2100,7 @@ export const MusteriListesi: React.FC = () => {
                   {activeFormTab === 'finans' && (
                     <button
                       type="submit"
-                      className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <Check className="w-4 h-4" />
                       {editingContactId ? 'Güncellemeleri Kaydet' : 'Cariyi Kaydet'}
@@ -2084,36 +2114,36 @@ export const MusteriListesi: React.FC = () => {
       )}
 
       {isAddressTypeModalOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-[#0B132B] border border-slate-700 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-scale-in text-white">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-blue-400" />
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white border border-stone-200 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-stone-900">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+              <h4 className="font-bold text-sm text-stone-900 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-indigo-600" />
                 Adres Tiplerini Yönet & Ekle
               </h4>
               <button
                 type="button"
                 onClick={() => setIsAddressTypeModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                className="text-stone-400 hover:text-stone-600 p-1 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-300">Mevcut Adres Tipleri</label>
+              <label className="text-xs font-semibold text-stone-700">Mevcut Adres Tipleri</label>
               <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
                 {addressTypes.map((type) => (
                   <div
                     key={type}
                     className={`flex items-center justify-between p-2 rounded-lg border text-xs transition-colors ${
                       newContact.addressType === type
-                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-semibold'
-                        : 'bg-slate-900/60 border-slate-800 text-slate-300'
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-semibold'
+                        : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100/80'
                     }`}
                   >
                     <span className="flex items-center gap-2">
-                      {newContact.addressType === type && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                      {newContact.addressType === type && <Check className="w-3.5 h-3.5 text-indigo-600" />}
                       {type}
                     </span>
                     <div className="flex items-center gap-2">
@@ -2123,7 +2153,7 @@ export const MusteriListesi: React.FC = () => {
                           setNewContact({ ...newContact, addressType: type });
                           setIsAddressTypeModalOpen(false);
                         }}
-                        className="text-[11px] text-blue-400 hover:text-blue-300 px-2 py-0.5 rounded bg-blue-950/50 hover:bg-blue-900/50 transition-colors cursor-pointer"
+                        className="text-[11px] text-indigo-600 hover:text-indigo-800 px-2 py-0.5 rounded bg-indigo-100/70 hover:bg-indigo-200/70 font-medium transition-colors cursor-pointer"
                       >
                         Seç
                       </button>
@@ -2134,7 +2164,7 @@ export const MusteriListesi: React.FC = () => {
                             setAddressTypes((prev) => prev.filter((t) => t !== type));
                             if (newContact.addressType === type) setNewContact({ ...newContact, addressType: 'Fatura Adresi' });
                           }}
-                          className="text-red-400 hover:text-red-300 p-1 transition-colors cursor-pointer"
+                          className="text-rose-500 hover:text-rose-700 p-1 transition-colors cursor-pointer"
                           title="Sil"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -2146,15 +2176,15 @@ export const MusteriListesi: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-800 space-y-2">
-              <label className="text-xs font-medium text-slate-300">Yeni Adres Tipi Ekle</label>
+            <div className="pt-2 border-t border-stone-200 space-y-2">
+              <label className="text-xs font-semibold text-stone-700">Yeni Adres Tipi Ekle</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newAddressTypeInput}
                   onChange={(e) => setNewAddressTypeInput(e.target.value)}
                   placeholder="Örn: Fabrika, Üretim Tesisi, Mağaza..."
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+                  className="flex-1 bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -2181,7 +2211,7 @@ export const MusteriListesi: React.FC = () => {
                       setNewAddressTypeInput('');
                     }
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
                 >
                   <Plus className="w-4 h-4" />
                   Ekle
@@ -2193,7 +2223,7 @@ export const MusteriListesi: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAddressTypeModalOpen(false)}
-                className="px-4 py-1.5 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                className="px-4 py-1.5 text-xs text-stone-700 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 border border-stone-200 rounded-lg transition-colors cursor-pointer"
               >
                 Kapat
               </button>
@@ -2203,39 +2233,39 @@ export const MusteriListesi: React.FC = () => {
       )}
 
       {isContactTypeModalOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-[#0B132B] border border-slate-700 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-scale-in text-white">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-400" />
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white border border-stone-200 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-stone-900">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+              <h4 className="font-bold text-sm text-stone-900 flex items-center gap-2">
+                <Users className="w-4 h-4 text-indigo-600" />
                 Cari Türlerini Yönet & Ekle
               </h4>
               <button
                 type="button"
                 onClick={() => setIsContactTypeModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                className="text-stone-400 hover:text-stone-600 p-1 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-300">Mevcut Cari Türleri</label>
+              <label className="text-xs font-semibold text-stone-700">Mevcut Cari Türleri</label>
               <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
                 {contactTypes.map((type) => (
                   <div
                     key={type.id}
                     className={`flex items-center justify-between p-2 rounded-lg border text-xs transition-colors ${
                       newContact.contactTypeId === type.id
-                        ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 font-semibold'
-                        : 'bg-slate-900/60 border-slate-800 text-slate-300'
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-900 font-semibold'
+                        : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100/80'
                     }`}
                   >
                     <span className="flex items-center gap-2">
-                      {newContact.contactTypeId === type.id && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                      {newContact.contactTypeId === type.id && <Check className="w-3.5 h-3.5 text-indigo-600" />}
                       {type.name}
                       {type.isSystem && (
-                        <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">Sistem</span>
+                        <span className="text-[10px] text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">Sistem</span>
                       )}
                     </span>
                     <div className="flex items-center gap-2">
@@ -2245,7 +2275,7 @@ export const MusteriListesi: React.FC = () => {
                           setNewContact({ ...newContact, contactTypeId: type.id });
                           setIsContactTypeModalOpen(false);
                         }}
-                        className="text-[11px] text-blue-400 hover:text-blue-300 px-2 py-0.5 rounded bg-blue-950/50 hover:bg-blue-900/50 transition-colors cursor-pointer"
+                        className="text-[11px] text-indigo-600 hover:text-indigo-800 px-2 py-0.5 rounded bg-indigo-100/70 hover:bg-indigo-200/70 font-medium transition-colors cursor-pointer"
                       >
                         Seç
                       </button>
@@ -2256,7 +2286,7 @@ export const MusteriListesi: React.FC = () => {
                             setContactTypes((prev) => prev.filter((t) => t.id !== type.id));
                             if (newContact.contactTypeId === type.id) setNewContact({ ...newContact, contactTypeId: 'ct-1' });
                           }}
-                          className="text-red-400 hover:text-red-300 p-1 transition-colors cursor-pointer"
+                          className="text-rose-500 hover:text-rose-700 p-1 transition-colors cursor-pointer"
                           title="Sil"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -2268,15 +2298,15 @@ export const MusteriListesi: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-800 space-y-2">
-              <label className="text-xs font-medium text-slate-300">Yeni Cari Türü Ekle</label>
+            <div className="pt-2 border-t border-stone-200 space-y-2">
+              <label className="text-xs font-semibold text-stone-700">Yeni Cari Türü Ekle</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newContactTypeInput}
                   onChange={(e) => setNewContactTypeInput(e.target.value)}
                   placeholder="Örn: Distribütör, Fason Üretici, Şube, Acente..."
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+                  className="flex-1 bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -2323,7 +2353,7 @@ export const MusteriListesi: React.FC = () => {
                       setNewContactTypeInput('');
                     }
                   }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
                 >
                   <Plus className="w-4 h-4" />
                   Ekle
@@ -2335,7 +2365,7 @@ export const MusteriListesi: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsContactTypeModalOpen(false)}
-                className="px-4 py-1.5 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                className="px-4 py-1.5 text-xs text-stone-700 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 border border-stone-200 rounded-lg transition-colors cursor-pointer"
               >
                 Kapat
               </button>
@@ -2469,7 +2499,10 @@ export const MusteriListesi: React.FC = () => {
                 <div className="grid grid-cols-1 gap-3 bg-stone-50 p-4 rounded-xl border border-stone-100">
                   <div className="flex items-center gap-3 text-sm">
                     <Phone className="w-4 h-4 text-stone-400" />
-                    <span className="text-stone-700">{detailContact.mobilePhone1 || 'Belirtilmemiş'}</span>
+                    <span className="text-stone-700">
+                      {detailContact.mobilePhone1 || 'Belirtilmemiş'}
+                      {detailContact.mobilePhone2 ? ` • Cep 2: ${detailContact.mobilePhone2}` : ''}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Mail className="w-4 h-4 text-stone-400" />

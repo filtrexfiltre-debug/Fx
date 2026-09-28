@@ -686,6 +686,56 @@ class TradeService {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.OFFERS);
       let list: TradeOffer[] = saved ? JSON.parse(saved) : INITIAL_OFFERS;
+
+      let contacts: any[] = [];
+      try {
+        const savedContacts = localStorage.getItem('fx_contacts_list');
+        if (savedContacts) contacts = JSON.parse(savedContacts);
+      } catch (e) {}
+
+      const knownMap: Record<string, string> = {
+        'c1': 'Ahmet Yılmaz İnşaat ve Otomotiv Ltd. Şti.',
+        'c2': 'Borusan Lojistik ve Dağıtım Hizmetleri A.Ş.',
+        'c3': 'Metro Raylı Taşımacılık İşletmeleri A.Ş.',
+        'c4': 'Mann+Hummel Filtre Sanayi ve Ticaret A.Ş.',
+        'c5': 'Bosch Rexroth Otomasyon San. A.Ş.',
+        '0480123456': 'Ahmet Yılmaz İnşaat ve Otomotiv Ltd. Şti.',
+        '1800543210': 'Borusan Lojistik ve Dağıtım Hizmetleri A.Ş.',
+        '6200987654': 'Metro Raylı Taşımacılık İşletmeleri A.Ş.',
+        '6110293847': 'Mann+Hummel Filtre Sanayi ve Ticaret A.Ş.',
+        '1800112233': 'Bosch Rexroth Otomasyon San. A.Ş.',
+      };
+
+      let updated = false;
+      list = list.map((off) => {
+        let resolved = '';
+        if (off.contactId && knownMap[off.contactId]) {
+          resolved = knownMap[off.contactId];
+        } else if (off.contactTaxNumber && knownMap[off.contactTaxNumber]) {
+          resolved = knownMap[off.contactTaxNumber];
+        } else if (off.contactId) {
+          const found = contacts.find((c: any) => c.id === off.contactId || c.taxNumber === off.contactTaxNumber);
+          if (found) {
+            resolved = found.title || found.authorizedPerson || found.name || found.companyName;
+          }
+        }
+        if (!resolved && off.contactTitle && off.contactTitle.trim() && !off.contactTitle.includes('VKN')) {
+          resolved = off.contactTitle;
+        }
+        if (!resolved) {
+          resolved = off.contactTaxNumber ? `Cari VKN: ${off.contactTaxNumber}` : 'Cari Müşteri';
+        }
+        if (resolved !== off.contactTitle) {
+          off.contactTitle = resolved;
+          updated = true;
+        }
+        return off;
+      });
+
+      if (updated) {
+        this.saveOffers(list);
+      }
+
       if (branchId && branchId !== 'all') {
         list = list.filter((o) => o.branchId === branchId);
       }
@@ -822,6 +872,30 @@ class TradeService {
       console.warn('Otomatik borç/alacak kaydı açılırken hata:', e);
     }
 
+    // Stok & Depolar modülüne entegrasyon (Tekliften dönüşen fatura için otomatik stok hareketi)
+    try {
+      for (const item of newInvoice.items) {
+        if (item.productId && item.warehouseId) {
+          fxApi.createStockMovement({
+            warehouseId: item.warehouseId,
+            productId: item.productId,
+            productSku: item.skuCode,
+            productName: item.productName,
+            movementType: isSales ? 'OUT' : 'IN',
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalAmount: item.lineTotal,
+            documentNumber: newInvoice.invoiceNumber,
+            contactTitle: newInvoice.contactTitle,
+            movementDate: newInvoice.issueDate,
+            notes: `${offer.offerNumber} numaralı teklif dönüşümü ile otomatik stok ${isSales ? 'çıkışı' : 'girişi'}`,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Teklif dönüşüm stok hareketi hatası:', e);
+    }
+
     return newInvoice;
   }
 
@@ -832,6 +906,56 @@ class TradeService {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.INVOICES);
       let list: TradeInvoice[] = saved ? JSON.parse(saved) : INITIAL_INVOICES;
+
+      let contacts: any[] = [];
+      try {
+        const savedContacts = localStorage.getItem('fx_contacts_list');
+        if (savedContacts) contacts = JSON.parse(savedContacts);
+      } catch (e) {}
+
+      const knownMap: Record<string, string> = {
+        'c1': 'Ahmet Yılmaz İnşaat ve Otomotiv Ltd. Şti.',
+        'c2': 'Borusan Lojistik ve Dağıtım Hizmetleri A.Ş.',
+        'c3': 'Metro Raylı Taşımacılık İşletmeleri A.Ş.',
+        'c4': 'Mann+Hummel Filtre Sanayi ve Ticaret A.Ş.',
+        'c5': 'Bosch Rexroth Otomasyon San. A.Ş.',
+        '0480123456': 'Ahmet Yılmaz İnşaat ve Otomotiv Ltd. Şti.',
+        '1800543210': 'Borusan Lojistik ve Dağıtım Hizmetleri A.Ş.',
+        '6200987654': 'Metro Raylı Taşımacılık İşletmeleri A.Ş.',
+        '6110293847': 'Mann+Hummel Filtre Sanayi ve Ticaret A.Ş.',
+        '1800112233': 'Bosch Rexroth Otomasyon San. A.Ş.',
+      };
+
+      let updated = false;
+      list = list.map((inv) => {
+        let resolved = '';
+        if (inv.contactId && knownMap[inv.contactId]) {
+          resolved = knownMap[inv.contactId];
+        } else if (inv.contactTaxNumber && knownMap[inv.contactTaxNumber]) {
+          resolved = knownMap[inv.contactTaxNumber];
+        } else if (inv.contactId) {
+          const found = contacts.find((c: any) => c.id === inv.contactId || c.taxNumber === inv.contactTaxNumber);
+          if (found) {
+            resolved = found.title || found.authorizedPerson || found.name || found.companyName;
+          }
+        }
+        if (!resolved && inv.contactTitle && inv.contactTitle.trim() && !inv.contactTitle.includes('VKN')) {
+          resolved = inv.contactTitle;
+        }
+        if (!resolved) {
+          resolved = inv.contactTaxNumber ? `Cari VKN: ${inv.contactTaxNumber}` : 'Cari Müşteri';
+        }
+        if (resolved !== inv.contactTitle) {
+          inv.contactTitle = resolved;
+          updated = true;
+        }
+        return inv;
+      });
+
+      if (updated) {
+        this.saveInvoices(list);
+      }
+
       if (branchId && branchId !== 'all') {
         list = list.filter((i) => i.branchId === branchId);
       }
@@ -892,6 +1016,31 @@ class TradeService {
       fxApi.createDebtCredit(debtCreditItem);
     } catch (e) {
       console.warn('Otomatik borç-alacak senkronizasyonunda hata:', e);
+    }
+
+    // Stok & Depolar modülüne entegrasyon (Otomatik Stok Giriş/Çıkış Hareketi)
+    try {
+      const isSales = newInvoice.direction === 'SATIS';
+      for (const item of newInvoice.items) {
+        if (item.productId && item.warehouseId) {
+          fxApi.createStockMovement({
+            warehouseId: item.warehouseId,
+            productId: item.productId,
+            productSku: item.skuCode,
+            productName: item.productName,
+            movementType: isSales ? 'OUT' : 'IN',
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalAmount: item.lineTotal,
+            documentNumber: newInvoice.invoiceNumber,
+            contactTitle: newInvoice.contactTitle,
+            movementDate: newInvoice.issueDate,
+            notes: `${newInvoice.invoiceNumber} numaralı ${isSales ? 'Satış' : 'Alış'} Faturası ile otomatik stok ${isSales ? 'çıkışı' : 'girişi'}`,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Otomatik stok hareketi oluşturulurken hata:', e);
     }
 
     return newInvoice;

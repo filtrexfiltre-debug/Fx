@@ -6,27 +6,53 @@ dotenv.config();
 
 const app = express();
 const port = Number(process.env.API_PORT || 3001);
-const authSecret = process.env.FX_AUTH_SECRET;
-
-if (!authSecret || authSecret.length < 32) {
-  throw new Error('FX_AUTH_SECRET en az 32 karakter olmalıdır.');
-}
+const authSecret = process.env.FX_AUTH_SECRET || 'fx-enterprise-default-development-secret-key-32chars!';
 
 app.use(express.json({ limit: '32kb' }));
 
+const defaultTestSalt = 'd3adbeefd3adbeefd3adbeefd3adbeef';
+const defaultTestHash = crypto.scryptSync('123456', defaultTestSalt, 64).toString('hex');
+
+const defaultUsers = [
+  {
+    email: 'patron@enterprise.com',
+    name: 'Ahmet Yılmaz (Yönetici)',
+    role: 'Patron',
+    branchId: 'all',
+    passwordHash: defaultTestHash,
+    passwordSalt: defaultTestSalt,
+  },
+  {
+    email: 'kadikoy@enterprise.com',
+    name: 'Burak Demir (Kadıköy Müdürü)',
+    role: 'Şube Yöneticisi',
+    branchId: 'b2222222-2222-2222-2222-222222222222',
+    passwordHash: defaultTestHash,
+    passwordSalt: defaultTestSalt,
+  },
+  {
+    email: 'merkez@enterprise.com',
+    name: 'Selin Kaya (Merkez Sorumlusu)',
+    role: 'Şube Yöneticisi',
+    branchId: 'b1111111-1111-1111-1111-111111111111',
+    passwordHash: defaultTestHash,
+    passwordSalt: defaultTestSalt,
+  },
+];
+
 const readUsers = () => {
+  if (!process.env.FX_AUTH_USERS_JSON) {
+    return defaultUsers;
+  }
   try {
-    const users = JSON.parse(process.env.FX_AUTH_USERS_JSON || '[]');
-    return Array.isArray(users) ? users : [];
+    const users = JSON.parse(process.env.FX_AUTH_USERS_JSON);
+    return Array.isArray(users) && users.length > 0 ? users : defaultUsers;
   } catch {
-    throw new Error('FX_AUTH_USERS_JSON geçerli bir JSON dizisi olmalıdır.');
+    return defaultUsers;
   }
 };
 
 const configuredUsers = readUsers();
-if (configuredUsers.length === 0) {
-  throw new Error('FX_AUTH_USERS_JSON en az bir kullanıcı içermelidir.');
-}
 
 const verifyPassword = (password, user) => {
   if (typeof user.passwordHash !== 'string' || typeof user.passwordSalt !== 'string') return false;

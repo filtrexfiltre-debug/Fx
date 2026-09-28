@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { appTheme } from '../../lib/agGridTheme';
 import { AG_GRID_LOCALE_TR } from '../../lib/agGridLocaleTR';
@@ -93,7 +93,7 @@ export const OdemeTahsilatManagement: React.FC = () => {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const sidebarButtonRef = useRef<HTMLButtonElement>(null);
 
-  const onSaveGridState = useCallback(() => {
+  const onSaveGridState = React.useCallback(() => {
     if (!gridApi) return;
     try {
       const colState = gridApi.getColumnState();
@@ -120,7 +120,7 @@ export const OdemeTahsilatManagement: React.FC = () => {
   }, []);
 
   // Verileri Yükle
-  const loadData = useCallback(async () => {
+  const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
       const [movRes, cbRes, brRes] = await Promise.all([
@@ -653,7 +653,7 @@ export const OdemeTahsilatManagement: React.FC = () => {
     };
   }, []);
 
-  const onGridReady = (params: GridReadyEvent<PaymentMovement>) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent<PaymentMovement>) => {
     setGridApi(params.api);
     try {
       const saved = localStorage.getItem(STORAGE_COLUMNS_KEY);
@@ -665,7 +665,7 @@ export const OdemeTahsilatManagement: React.FC = () => {
     } catch (e) {
       params.api.sizeColumnsToFit();
     }
-  };
+  }, []);
 
   return (
     <div className="w-full space-y-4">

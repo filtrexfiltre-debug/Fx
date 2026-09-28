@@ -17,6 +17,7 @@ import {
   Landmark,
   ShoppingBag,
   FileCheck2,
+  Wrench,
 } from 'lucide-react';
 
 export type AppTabType =
@@ -30,6 +31,7 @@ export type AppTabType =
   | 'gelir-gider'
   | 'virman'
   | 'vergi'
+  | 'servis'
   | 'moduller'
   | 'kodlar';
 
@@ -80,7 +82,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   const navItems: NavItem[] = [
     {
       id: 'musteri',
-      label: 'Cari hesaplar & müşteri',
+      label: 'Cari Hesaplar & Müşteri',
       shortLabel: 'Cariler',
       icon: Users,
     },
@@ -92,62 +94,68 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
     },
     {
       id: 'alis-satis',
-      label: 'Alışlar & satışlar',
-      shortLabel: 'Alış/satış',
+      label: 'Alışlar & Satışlar',
+      shortLabel: 'Alış / Satış',
       icon: ShoppingBag,
     },
     {
       id: 'efatura-gib',
-      label: 'E-fatura & GİB merkezi',
-      shortLabel: 'GİB e-fatura',
+      label: 'E-Fatura & GİB Merkezi',
+      shortLabel: 'GİB E-Fatura',
       icon: FileCheck2,
     },
     {
       id: 'personel',
-      label: 'Personel yönetimi',
+      label: 'Personel Yönetimi',
       shortLabel: 'Personel',
       icon: UserCheck,
     },
     {
+      id: 'servis',
+      label: 'Servisler ve Periyodik Bakımlar',
+      shortLabel: 'Servis & Bakım',
+      icon: Wrench,
+    },
+    {
       id: 'kasa-banka',
-      label: 'Kasalar & bankalar',
-      shortLabel: 'Kasa/banka',
+      label: 'Kasalar & Bankalar',
+      shortLabel: 'Kasa / Banka',
       icon: Landmark,
     },
     {
       id: 'odeme-tahsilat',
-      label: 'Ödemeler & tahsilatlar',
-      shortLabel: 'Ödeme/tahsilat',
+      label: 'Ödemeler & Tahsilatlar',
+      shortLabel: 'Ödeme / Tahsilat',
       icon: Banknote,
     },
     {
       id: 'gelir-gider',
-      label: 'Gelirler & giderler',
-      shortLabel: 'Gelir/gider',
+      label: 'Gelirler & Giderler',
+      shortLabel: 'Gelir / Gider',
       icon: ReceiptText,
     },
     {
       id: 'virman',
-      label: 'Şubeler arası virman',
+      label: 'Şubeler Arası Virman',
       shortLabel: 'Virman',
       icon: ArrowRightLeft,
     },
     {
       id: 'vergi',
-      label: 'Resmi vergi dağıtımı',
+      label: 'Resmi Vergi Dağıtımı',
       shortLabel: 'Vergi P&L',
       icon: PieChart,
     },
     {
       id: 'moduller',
-      label: '9 temel modül mimarisi',
+      label: '9 Temel Modül Mimarisi',
       shortLabel: 'Modüller',
       icon: ShieldCheck,
       isSystem: true,
     },
     {
       id: 'kodlar',
-      label: 'Kaynak kodlar & API',
+      label: 'Kaynak Kodlar & API',
       shortLabel: 'Kodlar',
       icon: FileCode2,
       isSystem: true,

@@ -1,7 +1,6 @@
 import React, {
   useState,
   useEffect,
-  useCallback,
   useRef,
 } from 'react';
 import {
@@ -68,7 +67,7 @@ export const SubeYonetimiModal: React.FC<SubeYonetimiModalProps> = ({
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const isMountedRef = useRef(true);
 
-  const setSafeTimeout = useCallback((handler: () => void, timeout?: number) => {
+  const setSafeTimeout = React.useCallback((handler: () => void, timeout?: number) => {
     const id = setTimeout(() => {
       handler();
       timeoutsRef.current = timeoutsRef.current.filter((t) => t !== id);
@@ -78,7 +77,7 @@ export const SubeYonetimiModal: React.FC<SubeYonetimiModalProps> = ({
     return id;
   }, []);
 
-  const clearAllTimeouts = useCallback(() => {
+  const clearAllTimeouts = React.useCallback(() => {
     timeoutsRef.current.forEach((id) => clearTimeout(id));
     timeoutsRef.current = [];
   }, []);
@@ -112,7 +111,7 @@ export const SubeYonetimiModal: React.FC<SubeYonetimiModalProps> = ({
   const tenantTaxNumber = tenant?.taxNumber || '-';
   const tenantShortName = tenant?.name ? tenant.name.split(' ')[0] : 'Sistem';
 
-  const refreshData = useCallback(() => {
+  const refreshData = React.useCallback(() => {
     const nextBranches = fxApi.getBranches();
     setBranches(nextBranches);
     setCurrentSelectedBranchId(branchContext.getSelectedBranchId());
@@ -120,7 +119,7 @@ export const SubeYonetimiModal: React.FC<SubeYonetimiModalProps> = ({
 
   const existingHQ = branches.find((b) => b.isHeadquarter);
 
-  const resetForm = useCallback(() => {
+  const resetForm = React.useCallback(() => {
     setEditingBranchId(null);
     setCode('');
     setName('');
@@ -131,7 +130,7 @@ export const SubeYonetimiModal: React.FC<SubeYonetimiModalProps> = ({
     setSuccessMsg(null);
   }, []);
 
-  const validateBranchForm = useCallback(
+  const validateBranchForm = React.useCallback(
     (excludeBranchId?: string): string | null => {
       const trimmedCode = code.trim().toUpperCase();
 

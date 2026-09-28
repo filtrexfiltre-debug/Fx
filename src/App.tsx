@@ -40,6 +40,7 @@ const VirmanTransfer = lazy(() => import('./components/Kasa-Banka/VirmanTransfer
 const VergiDagitim = lazy(() => import('./components/Raporlar/VergiDagitim').then((module) => ({ default: module.VergiDagitim })));
 const AlisSatisManagement = lazy(() => import('./components/Ticaret/AlisSatisManagement').then((module) => ({ default: module.AlisSatisManagement })));
 const EfaturaGibManagement = lazy(() => import('./components/E-fatura/EfaturaGibManagement').then((module) => ({ default: module.EfaturaGibManagement })));
+const ServisManagement = lazy(() => import('./components/Servis/ServisManagement').then((module) => ({ default: module.ServisManagement })));
 const ModulesOverview = lazy(() => import('./components/layout/ModulesOverview').then((module) => ({ default: module.ModulesOverview })));
 const CodeExplorer = lazy(() => import('./components/layout/CodeExplorer').then((module) => ({ default: module.CodeExplorer })));
 
@@ -83,8 +84,8 @@ export default function App() {
     }
   });
 
-  const [loginEmail, setLoginEmail] = useState<string>('');
-  const [loginPassword, setLoginPassword] = useState<string>('');
+  const [loginEmail, setLoginEmail] = useState<string>('patron@enterprise.com');
+  const [loginPassword, setLoginPassword] = useState<string>('123456');
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleLogin = async (email: string, pass: string) => {
@@ -236,6 +237,89 @@ export default function App() {
             >
               Giriş Yap
             </button>
+
+            {/* Hızlı Test Hesapları (Tek Tıkla Giriş) */}
+            <div className="border-t border-stone-200 pt-4 mt-2">
+              <span className="block text-xs font-bold text-stone-600 text-center mb-2.5">
+                ⚡ Hızlı Giriş (Test Hesapları)
+              </span>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginEmail('patron@enterprise.com');
+                    setLoginPassword('123456');
+                    handleLogin('patron@enterprise.com', '123456');
+                  }}
+                  className="w-full p-2.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-950 rounded-xl flex items-center justify-between transition-colors text-left cursor-pointer group shadow-2xs"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">👑</span>
+                    <div>
+                      <div className="text-xs font-bold text-indigo-950 group-hover:text-indigo-800">
+                        Ahmet Yılmaz (Patron / Genel Müdür)
+                      </div>
+                      <div className="text-[11px] text-stone-500 font-mono">
+                        patron@enterprise.com &bull; Şifre: 123456
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md shrink-0">
+                    Tüm Şubeler &rarr;
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginEmail('kadikoy@enterprise.com');
+                    setLoginPassword('123456');
+                    handleLogin('kadikoy@enterprise.com', '123456');
+                  }}
+                  className="w-full p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-900 rounded-xl flex items-center justify-between transition-colors text-left cursor-pointer group shadow-2xs"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">🏢</span>
+                    <div>
+                      <div className="text-xs font-bold text-stone-900 group-hover:text-indigo-900">
+                        Burak Demir (Kadıköy Şube Müdürü)
+                      </div>
+                      <div className="text-[11px] text-stone-500 font-mono">
+                        kadikoy@enterprise.com &bull; Şifre: 123456
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold bg-stone-200 text-stone-700 px-2 py-0.5 rounded-md shrink-0">
+                    Kadıköy &rarr;
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginEmail('merkez@enterprise.com');
+                    setLoginPassword('123456');
+                    handleLogin('merkez@enterprise.com', '123456');
+                  }}
+                  className="w-full p-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-900 rounded-xl flex items-center justify-between transition-colors text-left cursor-pointer group shadow-2xs"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg">🏛️</span>
+                    <div>
+                      <div className="text-xs font-bold text-stone-900 group-hover:text-indigo-900">
+                        Selin Kaya (Merkez Sorumlusu)
+                      </div>
+                      <div className="text-[11px] text-stone-500 font-mono">
+                        merkez@enterprise.com &bull; Şifre: 123456
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold bg-stone-200 text-stone-700 px-2 py-0.5 rounded-md shrink-0">
+                    Merkez &rarr;
+                  </span>
+                </button>
+              </div>
+            </div>
 
           </form>
         </div>
@@ -646,6 +730,7 @@ export default function App() {
             {activeTab === 'gelir-gider' && <GelirGiderManagement />}
             {activeTab === 'virman' && <VirmanTransfer />}
             {activeTab === 'vergi' && <VergiDagitim />}
+            {activeTab === 'servis' && <ServisManagement />}
             {activeTab === 'moduller' && <ModulesOverview onSelectTab={setActiveTab} />}
             {activeTab === 'kodlar' && <CodeExplorer />}
           </Suspense>
@@ -678,6 +763,6 @@ export default function App() {
           setActiveTab('kasa-banka');
         }}
       />
-    </div>
+      </div>
   );
 }

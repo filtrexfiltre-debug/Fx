@@ -338,7 +338,7 @@ export const NewOfferModal: React.FC<NewOfferModalProps> = ({
             {/* Cari Firma */}
             <div className="lg:col-span-2">
               <label className="block text-xs font-bold text-stone-700 mb-1">
-                {offerType === 'VERILEN' ? 'Müşteri / Cari Hesap *' : 'Tedarikçi Firma *'}
+                {offerType === 'VERILEN' ? 'Müşteri Cari Hesabı *' : 'Tedarikçi Cari Hesabı *'}
               </label>
               <select
                 value={selectedContactId}

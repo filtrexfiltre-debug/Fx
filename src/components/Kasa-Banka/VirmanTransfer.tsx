@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ArrowRightLeft,
   Clock,
@@ -78,7 +78,7 @@ export const VirmanTransfer: React.FC = () => {
   const [amount, setAmount] = useState<string>('50000');
   const [description, setDescription] = useState<string>('Şubeler arası operasyonel likidite dengeleme virmanı');
 
-  const loadData = useCallback(async () => {
+  const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
       const allBranches = fxApi.getBranches();
@@ -211,7 +211,7 @@ export const VirmanTransfer: React.FC = () => {
   };
 
   // Grid State Persistence
-  const onSaveGridState = useCallback(() => {
+  const onSaveGridState = React.useCallback(() => {
     if (!gridApi) return;
     try {
       const state = gridApi.getColumnState();
@@ -221,7 +221,7 @@ export const VirmanTransfer: React.FC = () => {
     }
   }, [gridApi]);
 
-  const onGridReady = useCallback((params: GridReadyEvent<InterBranchTransfer>) => {
+  const onGridReady = React.useCallback((params: GridReadyEvent<InterBranchTransfer>) => {
     setGridApi(params.api);
     try {
       const savedState = localStorage.getItem(STORAGE_GRID_KEY);

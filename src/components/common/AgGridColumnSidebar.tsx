@@ -2,7 +2,6 @@ import React, {
   useState,
   useEffect,
   useMemo,
-  useCallback,
   useRef,
 } from 'react';
 import { GridApi } from 'ag-grid-community';
@@ -78,11 +77,13 @@ interface ColumnItem {
   canPin: boolean;
 }
 
+const DEFAULT_PRIMARY_COL_IDS: string[] = [];
+
 export const AgGridColumnSidebar = <TData,>({
   gridApi,
   onClose,
   onSaveGridState,
-  primaryColIds = [],
+  primaryColIds = DEFAULT_PRIMARY_COL_IDS,
   sidebarRef,
   columnsRevision = 0,
 }: AgGridColumnSidebarProps<TData>) => {
@@ -91,11 +92,15 @@ export const AgGridColumnSidebar = <TData,>({
   const [isSavedRecently, setIsSavedRecently] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
 
-  const persistGridState = useCallback(() => {
-    onSaveGridState?.();
-  }, [onSaveGridState]);
+  const primaryColIdsStr = JSON.stringify(primaryColIds);
+  const onSaveGridStateRef = useRef(onSaveGridState);
+  onSaveGridStateRef.current = onSaveGridState;
 
-  const refreshColumns = useCallback(() => {
+  const persistGridState = React.useCallback(() => {
+    onSaveGridStateRef.current?.();
+  }, []);
+
+  const refreshColumns = React.useCallback(() => {
     if (!gridApi) return;
 
     try {
@@ -112,6 +117,8 @@ export const AgGridColumnSidebar = <TData,>({
           const pinned: 'left' | 'right' | null =
             rawPinned === 'right' ? 'right' : (rawPinned ? 'left' : null);
 
+          // We use the current prop value here, but it's safe because if the content changes
+          // primaryColIdsStr will change, triggering a re-creation of this callback.
           const isPrimary = primaryColIds.includes(colId);
 
           return {
@@ -129,7 +136,7 @@ export const AgGridColumnSidebar = <TData,>({
     } catch (e) {
       console.error('Error refreshing columns in AgGridColumnSidebar:', e);
     }
-  }, [gridApi, primaryColIds]);
+  }, [gridApi, primaryColIdsStr]); // content-based dependency
 
   useEffect(() => {
     refreshColumns();
@@ -143,7 +150,7 @@ export const AgGridColumnSidebar = <TData,>({
     };
   }, []);
 
-  const toggleColumnVisibility = useCallback(
+  const toggleColumnVisibility = React.useCallback(
     (colId: string, currentVisible: boolean) => {
       if (!gridApi) return;
 
@@ -165,7 +172,7 @@ export const AgGridColumnSidebar = <TData,>({
     [columns, gridApi, persistGridState]
   );
 
-  const showAllColumns = useCallback(() => {
+  const showAllColumns = React.useCallback(() => {
     if (!gridApi) return;
 
     const allIds = columns.map((column) => column.colId);
@@ -181,7 +188,7 @@ export const AgGridColumnSidebar = <TData,>({
     persistGridState();
   }, [columns, gridApi, persistGridState]);
 
-  const hideNonPrimaryColumns = useCallback(() => {
+  const hideNonPrimaryColumns = React.useCallback(() => {
     if (!gridApi) return;
 
     const primaryIds = columns
@@ -210,7 +217,7 @@ export const AgGridColumnSidebar = <TData,>({
     persistGridState();
   }, [columns, gridApi, persistGridState]);
 
-  const resetColumns = useCallback(() => {
+  const resetColumns = React.useCallback(() => {
     if (!gridApi) return;
 
     gridApi.resetColumnState();
@@ -222,7 +229,7 @@ export const AgGridColumnSidebar = <TData,>({
     persistGridState();
   }, [gridApi, persistGridState, refreshColumns]);
 
-  const fitColumns = useCallback(() => {
+  const fitColumns = React.useCallback(() => {
     if (!gridApi) return;
 
     requestAnimationFrame(() => {
@@ -230,7 +237,7 @@ export const AgGridColumnSidebar = <TData,>({
     });
   }, [gridApi]);
 
-  const togglePin = useCallback(
+  const togglePin = React.useCallback(
     (colId: string, currentPin: 'left' | 'right' | null) => {
       if (!gridApi) return;
 
@@ -254,7 +261,7 @@ export const AgGridColumnSidebar = <TData,>({
     [gridApi, persistGridState]
   );
 
-  const handleSave = useCallback(() => {
+  const handleSave = React.useCallback(() => {
     persistGridState();
 
     setIsSavedRecently(true);
