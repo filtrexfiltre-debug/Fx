@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 interface SettingsContextType {
   addressTypes: string[];
@@ -19,108 +19,156 @@ interface SettingsContextType {
   deleteBrandType: (type: string) => void;
 }
 
-const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
-
-export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [addressTypes, setAddressTypes] = useState<string[]>(['Merkez Adresi', 'Fabrika', 'Şube', 'Ev']);
-  const [brandTypes, setBrandTypes] = useState<string[]>(['Filtrex', 'Waterbox', 'Aquaturk', 'İhlas', 'Aura']);
-  const [serviceTypes, setServiceTypes] = useState<string[]>([
+const DEFAULTS = {
+  addressTypes: ['Merkez Adresi', 'Fabrika', 'Şube', 'Ev'],
+  brandTypes: ['Filtrex', 'Waterbox', 'Aquaturk', 'İhlas', 'Aura'],
+  serviceTypes: [
     'Arıza & Onarım (Cihaz Bozuk / Şikayet Var)',
     'Periyodik Bakım & Filtre Değişimi',
     'Montaj & Yeni Kurulum',
-    'Keşif & Su Analizi'
-  ]);
-  const [deviceModelTypes, setDeviceModelTypes] = useState<string[]>([
+    'Keşif & Su Analizi',
+  ],
+  deviceModelTypes: [
     '5 Aşamalı Tezgah Altı RO',
     '6 Aşamalı Alkali RO',
     'Endüstriyel Yumuşatma Sistemi',
     'Aktif Karbon Filtrasyon',
-    'Ultraviyole Sterilizasyon'
-  ]);
+    'Ultraviyole Sterilizasyon',
+  ],
+} as const;
 
-  // Load from localStorage on mount
+const STORAGE_KEYS = {
+  addressTypes: 'fx_settings_address_types',
+  brandTypes: 'fx_settings_brand_types',
+  serviceTypes: 'fx_settings_service_types',
+  deviceModelTypes: 'fx_settings_device_model_types',
+} as const;
+
+const sanitizeList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const getStoredList = (key: keyof typeof STORAGE_KEYS, fallback: string[]): string[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS[key]);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    const cleaned = sanitizeList(parsed);
+    return cleaned.length > 0 ? cleaned : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const persistList = (key: keyof typeof STORAGE_KEYS, value: string[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(value));
+  } catch {
+    // localStorage erişimi engellenebilir veya dolu olabilir; sessizce atla.
+  }
+};
+
+const normalizeNewType = (value: string): string => value.trim();
+
+const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+
+export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [addressTypes, setAddressTypes] = useState<string[]>(() => getStoredList('addressTypes', [...DEFAULTS.addressTypes]));
+  const [brandTypes, setBrandTypes] = useState<string[]>(() => getStoredList('brandTypes', [...DEFAULTS.brandTypes]));
+  const [serviceTypes, setServiceTypes] = useState<string[]>(() => getStoredList('serviceTypes', [...DEFAULTS.serviceTypes]));
+  const [deviceModelTypes, setDeviceModelTypes] = useState<string[]>(() => getStoredList('deviceModelTypes', [...DEFAULTS.deviceModelTypes]));
+
   useEffect(() => {
-    const savedAddressTypes = localStorage.getItem('fx_settings_address_types');
-    const savedBrandTypes = localStorage.getItem('fx_settings_brand_types');
-    const savedServiceTypes = localStorage.getItem('fx_settings_service_types');
-    const savedDeviceModelTypes = localStorage.getItem('fx_settings_device_model_types');
+    setAddressTypes((prev) => getStoredList('addressTypes', prev));
+    setBrandTypes((prev) => getStoredList('brandTypes', prev));
+    setServiceTypes((prev) => getStoredList('serviceTypes', prev));
+    setDeviceModelTypes((prev) => getStoredList('deviceModelTypes', prev));
+  }, []);
 
-    if (savedAddressTypes) setAddressTypes(JSON.parse(savedAddressTypes));
-    if (savedBrandTypes) setBrandTypes(JSON.parse(savedBrandTypes));
-    if (savedServiceTypes) setServiceTypes(JSON.parse(savedServiceTypes));
-    if (savedDeviceModelTypes) setDeviceModelTypes(JSON.parse(savedDeviceModelTypes));
+  const addType = useCallback((current: string[], value: string, persistKey: keyof typeof STORAGE_KEYS) => {
+    const typedValue = normalizeNewType(value);
+    if (!typedValue) return current;
+
+    const next = [...new Set([...current, typedValue])];
+    persistList(persistKey, next);
+    return next;
+  }, []);
+
+  const updateType = useCallback(
+    (current: string[], oldType: string, newType: string, persistKey: keyof typeof STORAGE_KEYS) => {
+      const targetOld = normalizeNewType(oldType);
+      const targetNew = normalizeNewType(newType);
+
+      if (!targetOld || !targetNew || targetOld === targetNew) {
+        return current;
+      }
+
+      const next = current.map((item) => (item === targetOld ? targetNew : item));
+      persistList(persistKey, next);
+      return next;
+    },
+    []
+  );
+
+  const deleteType = useCallback((current: string[], value: string, persistKey: keyof typeof STORAGE_KEYS) => {
+    const target = normalizeNewType(value);
+    if (!target) return current;
+
+    const next = current.filter((item) => item !== target);
+    persistList(persistKey, next);
+    return next;
   }, []);
 
   const addServiceType = (type: string) => {
-    const updated = [...serviceTypes, type];
-    setServiceTypes(updated);
-    localStorage.setItem('fx_settings_service_types', JSON.stringify(updated));
+    setServiceTypes((current) => addType(current, type, 'serviceTypes'));
   };
 
   const updateServiceType = (oldType: string, newType: string) => {
-    const updated = serviceTypes.map(t => (t === oldType ? newType : t));
-    setServiceTypes(updated);
-    localStorage.setItem('fx_settings_service_types', JSON.stringify(updated));
+    setServiceTypes((current) => updateType(current, oldType, newType, 'serviceTypes'));
   };
 
   const deleteServiceType = (type: string) => {
-    const updated = serviceTypes.filter(t => t !== type);
-    setServiceTypes(updated);
-    localStorage.setItem('fx_settings_service_types', JSON.stringify(updated));
+    setServiceTypes((current) => deleteType(current, type, 'serviceTypes'));
   };
 
   const addDeviceModelType = (type: string) => {
-    const updated = [...deviceModelTypes, type];
-    setDeviceModelTypes(updated);
-    localStorage.setItem('fx_settings_device_model_types', JSON.stringify(updated));
+    setDeviceModelTypes((current) => addType(current, type, 'deviceModelTypes'));
   };
 
   const updateDeviceModelType = (oldType: string, newType: string) => {
-    const updated = deviceModelTypes.map(t => (t === oldType ? newType : t));
-    setDeviceModelTypes(updated);
-    localStorage.setItem('fx_settings_device_model_types', JSON.stringify(updated));
+    setDeviceModelTypes((current) => updateType(current, oldType, newType, 'deviceModelTypes'));
   };
 
   const deleteDeviceModelType = (type: string) => {
-    const updated = deviceModelTypes.filter(t => t !== type);
-    setDeviceModelTypes(updated);
-    localStorage.setItem('fx_settings_device_model_types', JSON.stringify(updated));
+    setDeviceModelTypes((current) => deleteType(current, type, 'deviceModelTypes'));
   };
 
   const addAddressType = (type: string) => {
-    const updated = [...addressTypes, type];
-    setAddressTypes(updated);
-    localStorage.setItem('fx_settings_address_types', JSON.stringify(updated));
+    setAddressTypes((current) => addType(current, type, 'addressTypes'));
   };
 
   const updateAddressType = (oldType: string, newType: string) => {
-    const updated = addressTypes.map(t => (t === oldType ? newType : t));
-    setAddressTypes(updated);
-    localStorage.setItem('fx_settings_address_types', JSON.stringify(updated));
+    setAddressTypes((current) => updateType(current, oldType, newType, 'addressTypes'));
   };
 
   const deleteAddressType = (type: string) => {
-    const updated = addressTypes.filter(t => t !== type);
-    setAddressTypes(updated);
-    localStorage.setItem('fx_settings_address_types', JSON.stringify(updated));
+    setAddressTypes((current) => deleteType(current, type, 'addressTypes'));
   };
 
   const addBrandType = (type: string) => {
-    const updated = [...brandTypes, type];
-    setBrandTypes(updated);
-    localStorage.setItem('fx_settings_brand_types', JSON.stringify(updated));
+    setBrandTypes((current) => addType(current, type, 'brandTypes'));
   };
 
   const updateBrandType = (oldType: string, newType: string) => {
-    const updated = brandTypes.map(t => (t === oldType ? newType : t));
-    setBrandTypes(updated);
-    localStorage.setItem('fx_settings_brand_types', JSON.stringify(updated));
+    setBrandTypes((current) => updateType(current, oldType, newType, 'brandTypes'));
   };
 
   const deleteBrandType = (type: string) => {
-    const updated = brandTypes.filter(t => t !== type);
-    setBrandTypes(updated);
-    localStorage.setItem('fx_settings_brand_types', JSON.stringify(updated));
+    setBrandTypes((current) => deleteType(current, type, 'brandTypes'));
   };
 
   return (
@@ -141,7 +189,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         deleteAddressType,
         addBrandType,
         updateBrandType,
-        deleteBrandType
+        deleteBrandType,
       }}
     >
       {children}
