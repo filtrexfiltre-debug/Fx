@@ -40,6 +40,18 @@ CREATE TABLE IF NOT EXISTS branches (
 
 CREATE INDEX IF NOT EXISTS idx_branches_tenant ON branches(tenant_id);
 
+-- Stable demo tenant/branches used by the default API accounts. Existing
+-- installations keep their own records; these inserts are idempotent.
+INSERT INTO tenants (id, name, tax_number, tax_office)
+VALUES ('a1111111-1111-1111-1111-111111111111', 'FX Demo Tenant', '1000000000', 'Merkez')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO branches (id, tenant_id, code, name, city, is_headquarter)
+VALUES
+    ('b1111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111', 'MRK', 'Merkez Şube', 'İstanbul', TRUE),
+    ('b2222222-2222-2222-2222-222222222222', 'a1111111-1111-1111-1111-111111111111', 'KDK', 'Kadıköy Şube', 'İstanbul', FALSE)
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================================================
 -- 1. CARİ HESAPLAR VE CRM MODÜLÜ (contacts)
 -- ============================================================================
@@ -510,6 +522,138 @@ CREATE INDEX IF NOT EXISTS idx_transfers_tenant ON inter_branch_transfers(tenant
 CREATE INDEX IF NOT EXISTS idx_transfers_source_branch ON inter_branch_transfers(tenant_id, source_branch_id);
 CREATE INDEX IF NOT EXISTS idx_transfers_target_branch ON inter_branch_transfers(tenant_id, target_branch_id);
 CREATE INDEX IF NOT EXISTS idx_transfers_status ON inter_branch_transfers(tenant_id, status);
+
+-- Financial ledger and immutable audit history.
+CREATE TABLE IF NOT EXISTS financial_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    transaction_type VARCHAR(80) NOT NULL,
+    amount DECIMAL(18, 4) NOT NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'TRY',
+    description TEXT NOT NULL DEFAULT '',
+    transaction_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_id VARCHAR(150) NOT NULL,
+    user_name VARCHAR(200) NOT NULL,
+    reverses_transaction_id UUID REFERENCES financial_transactions(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_financial_transactions_tenant_branch_date
+    ON financial_transactions(tenant_id, branch_id, transaction_date DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_financial_transaction_reversal
+    ON financial_transactions(reverses_transaction_id) WHERE reverses_transaction_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+    branch_id UUID REFERENCES branches(id) ON DELETE RESTRICT,
+    user_id VARCHAR(150) NOT NULL,
+    user_name VARCHAR(200) NOT NULL,
+    action VARCHAR(120) NOT NULL,
+    resource_type VARCHAR(120) NOT NULL DEFAULT '',
+    resource_id VARCHAR(200) NOT NULL DEFAULT '',
+    details JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_branch_date
+    ON audit_logs(tenant_id, branch_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_user_date
+    ON audit_logs(tenant_id, user_id, created_at DESC);
+
+CREATE OR REPLACE FUNCTION reject_financial_history_mutation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RAISE EXCEPTION '% is append-only; create a reversal or compensating entry instead', TG_TABLE_NAME;
+END;
+$$;
+
+DO $$
+DECLARE
+    tbl TEXT;
+BEGIN
+    FOREACH tbl IN ARRAY ARRAY['financial_transactions', 'audit_logs']
+    LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS trg_%I_append_only ON %I', tbl, tbl);
+        EXECUTE format(
+            'CREATE TRIGGER trg_%I_append_only BEFORE UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION reject_financial_history_mutation()',
+            tbl, tbl
+        );
+        EXECUTE format('DROP TRIGGER IF EXISTS trg_%I_no_truncate ON %I', tbl, tbl);
+        EXECUTE format(
+            'CREATE TRIGGER trg_%I_no_truncate BEFORE TRUNCATE ON %I FOR EACH STATEMENT EXECUTE FUNCTION reject_financial_history_mutation()',
+            tbl, tbl
+        );
+    END LOOP;
+END $$;
+
+-- RLS remains opt-in for local/AI Studio development. Enable it for a deployment
+-- with: SET fx.enable_rls = 'on'; then execute this schema.
+CREATE OR REPLACE FUNCTION current_tenant_id()
+RETURNS UUID
+LANGUAGE SQL STABLE
+AS $$ SELECT NULLIF(current_setting('app.tenant_id', true), '')::UUID $$;
+
+CREATE OR REPLACE FUNCTION current_branch_id()
+RETURNS UUID
+LANGUAGE SQL STABLE
+AS $$ SELECT NULLIF(current_setting('app.branch_id', true), '')::UUID $$;
+
+CREATE OR REPLACE FUNCTION current_is_global()
+RETURNS BOOLEAN
+LANGUAGE SQL STABLE
+AS $$ SELECT COALESCE(NULLIF(current_setting('app.is_global', true), '')::BOOLEAN, FALSE) $$;
+
+DO $$
+DECLARE
+    tbl RECORD;
+BEGIN
+    FOR tbl IN
+        SELECT table_name,
+               bool_or(column_name = 'branch_id') AS has_branch_id
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND column_name IN ('tenant_id', 'branch_id')
+        GROUP BY table_name
+        HAVING bool_or(column_name = 'tenant_id')
+    LOOP
+        IF current_setting('fx.enable_rls', true) = 'on' THEN
+            EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl.table_name);
+            EXECUTE format('DROP POLICY IF EXISTS fx_tenant_branch_isolation ON %I', tbl.table_name);
+            IF tbl.has_branch_id THEN
+                EXECUTE format(
+                    'CREATE POLICY fx_tenant_branch_isolation ON %I USING (tenant_id = current_tenant_id() AND (current_is_global() OR branch_id = current_branch_id())) WITH CHECK (tenant_id = current_tenant_id() AND (current_is_global() OR branch_id = current_branch_id()))',
+                    tbl.table_name
+                );
+            ELSE
+                EXECUTE format(
+                    'CREATE POLICY fx_tenant_branch_isolation ON %I USING (tenant_id = current_tenant_id()) WITH CHECK (tenant_id = current_tenant_id())',
+                    tbl.table_name
+                );
+            END IF;
+        END IF;
+    END LOOP;
+END $$;
+
+-- Optional deployment hardening (run as a database owner after reviewing grants):
+-- ALTER TABLE financial_transactions FORCE ROW LEVEL SECURITY;
+-- ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY;
+-- ALTER TABLE contacts FORCE ROW LEVEL SECURITY;
+-- ALTER TABLE invoices FORCE ROW LEVEL SECURITY;
+-- Create a non-owner application role. This guarded block is safe to re-run;
+-- role creation is skipped when the installer lacks CREATEROLE privileges.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fx_app') THEN
+        BEGIN
+            EXECUTE 'CREATE ROLE fx_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS';
+        EXCEPTION WHEN insufficient_privilege THEN
+            RAISE NOTICE 'Skipping optional fx_app role creation (CREATEROLE privilege required).';
+        END;
+    END IF;
+END $$;
 
 -- Otomatik updated_at güncelleme tetikleyicisi
 CREATE OR REPLACE FUNCTION set_updated_at_timestamp()

@@ -25,7 +25,8 @@ import {
   PanelLeftClose,
   PanelLeft,
 } from 'lucide-react';
-import { AuthenticatedUser, fxApi, branchContext } from './services/api';
+import { fxApi, branchContext } from './services/api';
+import { useAuth } from './hooks/useAuth';
 import { SubeYonetimiModal } from './components/ayarlar/SubeYonetimiModal';
 import { NavigationDrawer, AppTabType } from './components/layout/NavigationDrawer';
 import { Branch } from './types/fx';
@@ -74,12 +75,25 @@ const EfaturaGibManagement = lazy(() => import('./components/E-fatura/EfaturaGib
 const ServisManagement = lazy(() => import('./components/Servis/ServisManagement').then((module) => ({ default: module.ServisManagement })));
 const ModulesOverview = lazy(() => import('./components/layout/ModulesOverview').then((module) => ({ default: module.ModulesOverview })));
 const CodeExplorer = lazy(() => import('./components/layout/CodeExplorer').then((module) => ({ default: module.CodeExplorer })));
+const LedgerScreen = lazy(() => import('./components/Finans/LedgerScreen').then((module) => ({ default: module.LedgerScreen })));
+const AuditScreen = lazy(() => import('./components/Finans/AuditScreen').then((module) => ({ default: module.AuditScreen })));
 
 export default function App() {
+  const {
+    isLoggedIn,
+    currentUser,
+    loginEmail,
+    setLoginEmail,
+    loginPassword,
+    setLoginPassword,
+    loginError,
+    handleLogin,
+    handleLogout,
+  } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTabType>('musteri');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>(branchContext.getSelectedBranchId());
-  const [isGlobalUser, setIsGlobalUser] = useState<boolean>(branchContext.getIsGlobalUser());
+  const [isGlobalUser, setIsGlobalUser] = useState<boolean>(currentUser?.isGlobal === true);
   const [isBranchModalOpen, setIsBranchModalOpen] = useState<boolean>(false);
   const [branchModalInitialTab, setBranchModalInitialTab] = useState<'list' | 'create' | 'edit'>('list');
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState<boolean>(false);
@@ -98,60 +112,6 @@ export default function App() {
     });
   };
 
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    const isPersistedLoggedIn = readStoredBoolean('fx_is_logged_in', false);
-    const hasToken = Boolean(safeLocalStorage.getItem('fx_auth_token'));
-    return isPersistedLoggedIn && hasToken;
-  });
-  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(() => {
-    const saved = safeLocalStorage.getItem('fx_current_user');
-    if (!saved) return null;
-    try {
-      const parsed = JSON.parse(saved);
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch {
-      safeLocalStorage.removeItem('fx_current_user');
-      return null;
-    }
-  });
-
-  const [loginEmail, setLoginEmail] = useState<string>('patron@enterprise.com');
-  const [loginPassword, setLoginPassword] = useState<string>('123456');
-  const [loginError, setLoginError] = useState<string | null>(null);
-
-  const handleLogin = async (email: string, pass: string) => {
-    setLoginError(null);
-    if (!email || !pass) {
-      setLoginError('Lütfen e-posta ve şifrenizi giriniz.');
-      return;
-    }
-
-    try {
-      const { user } = await fxApi.login(email, pass);
-      setCurrentUser(user);
-      setIsLoggedIn(true);
-      const globalUser = user.branchId === 'all';
-      setIsGlobalUser(globalUser);
-      setSelectedBranchId(user.branchId);
-      branchContext.setIsGlobalUser(globalUser);
-      branchContext.setSelectedBranchId(user.branchId);
-      safeLocalStorage.setItem('fx_is_logged_in', 'true');
-      safeLocalStorage.setItem('fx_current_user', JSON.stringify(user));
-    } catch (error) {
-      setLoginError(error instanceof Error ? error.message : 'Giriş yapılamadı.');
-    }
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    setLoginEmail('');
-    setLoginPassword('');
-    safeLocalStorage.removeItem('fx_is_logged_in');
-    safeLocalStorage.removeItem('fx_current_user');
-    safeLocalStorage.removeItem('fx_auth_token');
-  };
-
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -161,11 +121,14 @@ export default function App() {
     const unsubscribe = branchContext.subscribe(() => {
       setBranches(fxApi.getBranches());
       setSelectedBranchId(branchContext.getSelectedBranchId());
-      setIsGlobalUser(branchContext.getIsGlobalUser());
     });
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    setIsGlobalUser(currentUser?.isGlobal === true);
+  }, [currentUser?.isGlobal]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -184,14 +147,9 @@ export default function App() {
   };
 
   const handleGlobalUserToggle = () => {
-    const nextVal = !isGlobalUser;
-    branchContext.setIsGlobalUser(nextVal);
-    setIsGlobalUser(nextVal);
-    if (!nextVal && selectedBranchId === 'all') {
-      const fallbackBranchId = branches[0]?.id ?? '';
-      branchContext.setSelectedBranchId(fallbackBranchId);
-      setSelectedBranchId(fallbackBranchId);
-    }
+    const nextBranchId = selectedBranchId === 'all' ? branches[0]?.id ?? '' : 'all';
+    branchContext.setSelectedBranchId(nextBranchId);
+    setSelectedBranchId(nextBranchId);
   };
 
   const openBranchManagementModal = (tab: 'list' | 'create' = 'list') => {
@@ -367,6 +325,7 @@ export default function App() {
         setIsCollapsed={handleToggleSidebar}
         currentBranchName={currentBranch?.name}
         isConsolidated={selectedBranchId === 'all'}
+        permissions={currentUser?.permissions || []}
       />
 
       <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
@@ -675,21 +634,21 @@ export default function App() {
                   <button
                     onClick={handleGlobalUserToggle}
                     className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
-                      isGlobalUser
+                      selectedBranchId === 'all'
                         ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-2xs'
                         : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
                     }`}
-                    title="GlobalUser: Şube kilidini kaldırır ve konsolide raporlama sunar"
+                    title="Konsolide ve tek şube görünümü arasında geçiş yapın"
                   >
-                    {isGlobalUser ? (
+                    {selectedBranchId === 'all' ? (
                       <>
                         <Unlock className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Rol: GlobalUser</span>
+                        <span>Görünüm: Konsolide</span>
                       </>
                     ) : (
                       <>
                         <Lock className="w-3.5 h-3.5 text-stone-500" />
-                        <span>Rol: Şube Yöneticisi</span>
+                        <span>Görünüm: Şube</span>
                       </>
                     )}
                   </button>
@@ -735,6 +694,8 @@ export default function App() {
             {activeTab === 'virman' && <VirmanTransfer />}
             {activeTab === 'vergi' && <VergiDagitim />}
             {activeTab === 'servis' && <ServisManagement />}
+            {activeTab === 'ledger' && <LedgerScreen branches={branches} showBranchFilter={isGlobalUser} canExport={currentUser?.permissions?.includes('finance.export') === true} />}
+            {activeTab === 'audit' && <AuditScreen branches={branches} showBranchFilter={isGlobalUser} canExport={currentUser?.permissions?.includes('audit.export') === true} />}
             {activeTab === 'moduller' && <ModulesOverview onSelectTab={setActiveTab} />}
             {activeTab === 'kodlar' && <CodeExplorer />}
           </Suspense>

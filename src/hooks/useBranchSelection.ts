@@ -34,15 +34,10 @@ export function useBranchSelection() {
   };
 
   const handleGlobalUserToggle = () => {
-    const nextVal = !isGlobalUser;
-    branchContext.setIsGlobalUser(nextVal);
-    setIsGlobalUser(nextVal);
-
-    if (!nextVal && selectedBranchId === 'all') {
-      const fallbackBranchId = branches[0]?.id ?? '';
-      branchContext.setSelectedBranchId(fallbackBranchId);
-      setSelectedBranchId(fallbackBranchId);
-    }
+    if (!isGlobalUser) return;
+    const nextBranchId = selectedBranchId === 'all' ? branches[0]?.id ?? '' : 'all';
+    branchContext.setSelectedBranchId(nextBranchId);
+    setSelectedBranchId(nextBranchId);
   };
 
   const handleToggleSidebar = () => {

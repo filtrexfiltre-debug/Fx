@@ -27,6 +27,11 @@ export const safeLocalStorage = {
   },
 };
 
+export const safeStorage = safeLocalStorage;
+export const STORAGE_KEYS = {
+  AUTH_TOKEN: 'fx_auth_token',
+};
+
 /**
  * Reads a boolean value from localStorage safely.
  * Returns fallback if key doesn't exist or value is invalid.
