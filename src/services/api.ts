@@ -8,6 +8,9 @@
 import { Contact, Branch, CashBank, InterBranchTransfer, TaxAllocation, Employee, Product, Warehouse, StockMovement, WarehouseStock, ShippingRate, PaymentMovement, RevenueExpenseItem, RevenueExpenseCategoryItem, RevenueExpenseType, DebtCreditItem, DebtCreditPaymentRecord, DebtCreditType, DebtCreditStatus, PaymentMethodType } from '../types/fx';
 import { BRANCHES, CURRENT_TENANT, INITIAL_CONTACTS, INITIAL_CASH_BANKS, INITIAL_TRANSFERS, INITIAL_TAX_ALLOCATIONS, INITIAL_EMPLOYEES, INITIAL_WAREHOUSES, INITIAL_PRODUCTS, INITIAL_STOCK_MOVEMENTS, INITIAL_WAREHOUSE_STOCKS, INITIAL_SHIPPING_RATES, INITIAL_PAYMENT_MOVEMENTS, INITIAL_REVENUE_EXPENSES, INITIAL_REVENUE_EXPENSE_CATEGORIES, INITIAL_DEBT_CREDITS } from '../data/mockData';
 import { geoService } from './geoService';
+import { safeLocalStorage } from '../lib/storage';
+
+const localStorage = safeLocalStorage;
 
 // Aktif şube ve kimlik yönetimi
 const STORAGE_KEYS = {
@@ -66,7 +69,7 @@ class BranchContextManager {
 
   constructor() {
     this.selectedBranchId = localStorage.getItem(STORAGE_KEYS.BRANCH_ID) || DEFAULT_BRANCH_ID;
-    this.isGlobalUser = localStorage.getItem(STORAGE_KEYS.IS_GLOBAL_USER) === 'true';
+    this.isGlobalUser = false;
   }
 
   public getSelectedBranchId(): string {
@@ -83,9 +86,18 @@ class BranchContextManager {
     return this.isGlobalUser;
   }
 
-  public setIsGlobalUser(val: boolean): void {
-    this.isGlobalUser = val;
-    localStorage.setItem(STORAGE_KEYS.IS_GLOBAL_USER, String(val));
+  public setAuthContext(branchId: string, isGlobal: boolean): void {
+    this.selectedBranchId = branchId || DEFAULT_BRANCH_ID;
+    this.isGlobalUser = isGlobal;
+    localStorage.setItem(STORAGE_KEYS.BRANCH_ID, this.selectedBranchId);
+    this.notify();
+  }
+
+  public clearAuthContext(): void {
+    this.selectedBranchId = DEFAULT_BRANCH_ID;
+    this.isGlobalUser = false;
+    localStorage.removeItem(STORAGE_KEYS.BRANCH_ID);
+    localStorage.removeItem(STORAGE_KEYS.IS_GLOBAL_USER);
     this.notify();
   }
 
@@ -386,10 +398,14 @@ export interface ApiResponse<T> {
 }
 
 export interface AuthenticatedUser {
+  id?: string;
   email: string;
   name: string;
   role: string;
   branchId: string;
+  tenantId?: string;
+  isGlobal?: boolean;
+  permissions?: string[];
 }
 
 /**
@@ -399,45 +415,22 @@ export interface AuthenticatedUser {
  */
 export const fxApi = {
   async login(email: string, password: string): Promise<{ user: AuthenticatedUser; token: string }> {
+    let response: Response;
     try {
-      const response = await fetch('/api/auth/login', {
+      response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
-      const payload = await response.json().catch(() => ({}));
-      if (response.ok && payload.user && (payload.token || payload.accessToken)) {
-        const token = payload.token || payload.accessToken;
-        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-        return { user: payload.user, token };
-      }
     } catch {
-      // Backend çevrimdışı olduğunda aşağıdaki test hesapları devreye girer
+      throw new Error('API sunucusuna ulaşılamadı. Lütfen API hizmetini başlatın.');
     }
-
-    // Yerleşik test kullanıcıları (offline / doğrudan geliştirme ortamı uyumluluğu)
-    const normalizedEmail = email.trim().toLowerCase();
-    if (normalizedEmail === 'patron@enterprise.com' && password === '123456') {
-      const user: AuthenticatedUser = { email: normalizedEmail, name: 'Ahmet Yılmaz (Yönetici)', role: 'Patron', branchId: 'all' };
-      const token = 'token-patron-enterprise';
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      return { user, token };
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok && payload.user && (payload.token || payload.accessToken)) {
+      const token = payload.token || payload.accessToken;
+      return { user: payload.user, token };
     }
-    if (normalizedEmail === 'kadikoy@enterprise.com' && password === '123456') {
-      const user: AuthenticatedUser = { email: normalizedEmail, name: 'Burak Demir (Kadıköy Müdürü)', role: 'Şube Yöneticisi', branchId: 'b2222222-2222-2222-2222-222222222222' };
-      const token = 'token-kadikoy-enterprise';
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      return { user, token };
-    }
-    if (normalizedEmail === 'merkez@enterprise.com' && password === '123456') {
-      const user: AuthenticatedUser = { email: normalizedEmail, name: 'Selin Kaya (Merkez Sorumlusu)', role: 'Şube Yöneticisi', branchId: 'b1111111-1111-1111-1111-111111111111' };
-      const token = 'token-merkez-enterprise';
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      return { user, token };
-    }
-
-    throw new Error('E-posta veya şifre geçersiz.');
+    throw new Error(payload.message || 'Giriş yapılamadı.');
   },
 
   /**

@@ -18,6 +18,8 @@ import {
   ShoppingBag,
   FileCheck2,
   Wrench,
+  ScrollText,
+  ClipboardList,
 } from 'lucide-react';
 
 export type AppTabType =
@@ -32,6 +34,8 @@ export type AppTabType =
   | 'virman'
   | 'vergi'
   | 'servis'
+  | 'ledger'
+  | 'audit'
   | 'moduller'
   | 'kodlar';
 
@@ -46,6 +50,7 @@ interface NavigationDrawerProps {
   setIsCollapsed: (collapsed: boolean | ((prev: boolean) => boolean)) => void;
   currentBranchName?: string;
   isConsolidated?: boolean;
+  permissions?: string[];
 }
 
 interface NavItem {
@@ -54,6 +59,7 @@ interface NavItem {
   shortLabel: string;
   icon: React.ComponentType<{ className?: string }>;
   isSystem?: boolean;
+  permission?: string;
 }
 
 export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
@@ -65,6 +71,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   setIsCollapsed,
   currentBranchName,
   isConsolidated,
+  permissions = [],
 }) => {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
@@ -145,6 +152,20 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
       label: 'Resmi Vergi Dağıtımı',
       shortLabel: 'Vergi P&L',
       icon: PieChart,
+    },
+    {
+      id: 'ledger',
+      label: 'Defter Hareketleri',
+      shortLabel: 'Defter',
+      icon: ClipboardList,
+      permission: 'finance.read',
+    },
+    {
+      id: 'audit',
+      label: 'Denetim Kayıtları',
+      shortLabel: 'Denetim',
+      icon: ScrollText,
+      permission: 'audit.read',
     },
     {
       id: 'moduller',
@@ -248,10 +269,10 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
 
         {/* Orta Navigasyon Listesi (Temiz, Başlıksız, Modern & Ergonomik) */}
         <div className="flex-1 overflow-y-auto py-3 px-2.5 space-y-1 scrollbar-thin scrollbar-thumb-slate-700">
-          {navItems.map((item, idx) => {
+          {navItems.filter((item) => !item.permission || permissions.includes(item.permission)).map((item, idx, visibleItems) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
-            const showDivider = item.isSystem && idx > 0 && !navItems[idx - 1].isSystem;
+            const showDivider = item.isSystem && idx > 0 && !visibleItems[idx - 1].isSystem;
 
             return (
               <React.Fragment key={item.id}>

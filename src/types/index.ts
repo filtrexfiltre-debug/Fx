@@ -1,5 +1,27 @@
 import React from 'react';
 
+export enum ApiErrorCode {
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  FORBIDDEN = 'FORBIDDEN',
+  NOT_FOUND = 'NOT_FOUND',
+  BAD_REQUEST = 'BAD_REQUEST',
+  SERVER_ERROR = 'SERVER_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export class ApiError extends Error {
+  constructor(
+    public readonly code: ApiErrorCode,
+    public readonly statusCode: number,
+    message: string,
+    public readonly originalError?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 export type ServisOdemeTuru = 'NAKIT' | 'ACIK_HESAP';
 export type ServisDurumu = 'RANDEVU_PLANLANDI' | 'YOLDA_SAHADA' | 'TAMAMLANDI_KAPATILDI' | 'FATURALANDI' | 'IPTAL';
 export type ServisTipi = 'PERIYODIK_BAKIM' | 'FILTRE_DEGISIMI' | 'ARIZA_ONARIM' | 'MONTAJ_KURULUM' | 'KESIF_DURUM_TESPITI';
