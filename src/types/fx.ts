@@ -645,3 +645,94 @@ export interface DebtCreditItem {
 }
 
 
+
+// ============================================================================
+// Kimlik, Yetkilendirme, Finansal Defter ve Denetim (schema.sql bölüm 11-13)
+// ============================================================================
+
+export interface User {
+  id: string;
+  tenantId: string;
+  branchId?: string | null; // null = tüm şubeler (global kullanıcı)
+  email: string;
+  fullName: string;
+  isActive: boolean;
+  lastLoginAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
+export interface Role {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  isSystem: boolean;
+  deletedAt?: string | null;
+}
+
+export interface Permission {
+  id: string;
+  code: string; // örn: invoice.create
+  description?: string;
+}
+
+export interface UserRole {
+  tenantId: string;
+  userId: string;
+  roleId: string;
+}
+
+export interface RolePermission {
+  tenantId: string;
+  roleId: string;
+  permissionId: string;
+}
+
+export type FinancialTransactionType = 'Collection' | 'Payment' | 'Expense' | 'Transfer' | 'Salary' | 'Tax';
+
+/** Append-only defter satırı; düzeltme için reversesTransactionId ile ters kayıt atılır. */
+export interface FinancialTransaction {
+  id: string;
+  tenantId: string;
+  branchId: string;
+  txType: FinancialTransactionType;
+  direction: 'In' | 'Out';
+  amount: number;
+  currencyCode: string;
+  cashBankId?: string;
+  contactId?: string;
+  sourceType?: string;
+  sourceId?: string;
+  reversesTransactionId?: string;
+  referenceNumber?: string;
+  description?: string;
+  transactionDate: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+/** UI'daki PaymentMovementType değerlerinin defter tipine eşlemesi. */
+export const PAYMENT_MOVEMENT_TO_TX_TYPE: Record<'TAHSILAT' | 'ODEME' | 'MASRAF' | 'VIRMAN', FinancialTransactionType> = {
+  TAHSILAT: 'Collection',
+  ODEME: 'Payment',
+  MASRAF: 'Expense',
+  VIRMAN: 'Transfer',
+};
+
+export interface AuditLog {
+  id: string;
+  tenantId: string;
+  branchId?: string | null;
+  userId?: string | null;
+  action: 'Create' | 'Update' | 'Delete';
+  entityName: string;
+  entityId: string;
+  oldValues?: Record<string, unknown> | null;
+  newValues?: Record<string, unknown> | null;
+  ipAddress?: string;
+  userAgent?: string;
+  requestId?: string;
+  createdAt: string;
+}
