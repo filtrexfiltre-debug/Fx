@@ -1,3 +1,5 @@
+const { queryString } = require('../services/query.cjs');
+
 function requirePermission(permission) {
   return (request, response, next) => {
     if (!request.user?.permissions?.includes(permission)) {
@@ -8,7 +10,7 @@ function requirePermission(permission) {
 }
 
 function requireConsolidatedAccess(request, response, next) {
-  const branchId = request.query.branchId;
+  const branchId = queryString(request.query.branchId);
   const isCrossBranch = request.user.isGlobal
     ? !branchId || branchId !== request.user.branchId
     : Boolean(branchId && branchId !== request.user.branchId);

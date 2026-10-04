@@ -6,7 +6,9 @@ const { loginRateLimitMax, rateLimitWindowMs } = require('../config.cjs');
 const router = express.Router();
 const rateLimit = createRateLimiter({ windowMs: rateLimitWindowMs, max: loginRateLimitMax });
 
-router.post('/login', rateLimit, (request, response) => {
+router.use('/login', rateLimit);
+
+router.post('/login', (request, response) => {
   const email = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : '';
   const password = typeof request.body?.password === 'string' ? request.body.password : '';
   const result = login(email, password);

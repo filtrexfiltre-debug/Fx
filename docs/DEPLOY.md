@@ -28,9 +28,18 @@ Use the demo accounts shown on the login screen (password `123456`). Configure
 3. Set `DATABASE_URL` and a unique random `FX_AUTH_SECRET` of at least 32
    characters on the server. Install optional dependencies (`npm install`) so
    the PostgreSQL driver is available.
-4. Grant the non-owner `fx_app` role only the required schema/table privileges
-   and configure the server's database connection to use that role. RLS context
-   is set transaction-locally from the verified token claims.
+4. Grant the non-owner `fx_app` role only required privileges, then create a
+   dedicated login role as a member of `fx_app` and use that login in
+   `DATABASE_URL`. For the ledger/audit API, for example:
+
+   ```sql
+   CREATE ROLE fx_app_login LOGIN PASSWORD 'use-a-secret-from-your-secret-store';
+   GRANT fx_app TO fx_app_login;
+   GRANT USAGE ON SCHEMA public TO fx_app;
+   GRANT SELECT, INSERT ON financial_transactions, audit_logs TO fx_app;
+   ```
+
+   RLS context is set transaction-locally from the verified token claims.
 5. Set `CORS_ORIGIN` when the UI and API use different origins; leave it unset
    for same-origin deployments. Tune `RATE_LIMIT_WINDOW_MS`,
    `RATE_LIMIT_MAX`, and `RATE_LIMIT_LOGIN_MAX` for the expected traffic.

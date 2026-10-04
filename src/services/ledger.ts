@@ -15,6 +15,39 @@ export interface LedgerEntry {
   createdAt: string;
 }
 
+function currentClaims(): { sub: string; name: string; tenantId: string; branchId: string; isGlobal: boolean } | null {
+  try {
+    const token = safeLocalStorage.getItem('fx_auth_token');
+    const encoded = token?.split('.')[0];
+    if (!encoded) return null;
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')), (character) => character.charCodeAt(0));
+    const claims = JSON.parse(new TextDecoder().decode(bytes));
+    if (typeof claims.sub !== 'string' || typeof claims.tenantId !== 'string' ||
+        typeof claims.branchId !== 'string' || typeof claims.isGlobal !== 'boolean') return null;
+    return {
+      sub: claims.sub,
+      name: typeof claims.name === 'string' ? claims.name : claims.email,
+      tenantId: claims.tenantId,
+      branchId: claims.branchId,
+      isGlobal: claims.isGlobal,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function csvBlob(rows: Record<string, unknown>[]): Blob {
+  const headers = rows.length ? Object.keys(rows[0]) : [];
+  const cell = (value: unknown) => {
+    let text = value && typeof value === 'object' ? JSON.stringify(value) : String(value ?? '');
+    if (/^[\s]*[=+\-@]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+  return new Blob([`\uFEFF${[headers, ...rows.map((row) => headers.map((header) => row[header]))]
+    .map((row) => row.map(cell).join(';')).join('\r\n')}`], { type: 'text/csv;charset=utf-8;' });
+}
+
 export interface LedgerFilters {
   from?: string;
   to?: string;
@@ -102,7 +135,10 @@ export const ledgerService = {
       return result;
     } catch (error) {
       if (!isNetworkError(error)) throw error;
+      const claims = currentClaims();
       const all = readLocal<LedgerEntry>(ledgerKey).filter((entry) =>
+        Boolean(claims && entry.tenantId === claims.tenantId &&
+          (claims.isGlobal || entry.branchId === claims.branchId)) &&
         (!filters.from || entry.transactionDate >= filters.from) &&
         (!filters.to || entry.transactionDate <= `${filters.to}T23:59:59.999Z`) &&
         (!filters.branchId || entry.branchId === filters.branchId) &&
@@ -124,12 +160,15 @@ export const ledgerService = {
       return result.data;
     } catch (error) {
       if (!isNetworkError(error)) throw error;
+      const claims = currentClaims();
       const stored: LedgerEntry = {
         ...entry,
+        tenantId: claims?.tenantId,
+        branchId: claims ? (claims.isGlobal ? entry.branchId || claims.branchId : claims.branchId) : '',
         id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
         transactionDate: entry.transactionDate || new Date().toISOString(),
-        userId: 'offline',
-        userName: 'Çevrimdışı kullanıcı',
+        userId: claims?.sub || 'offline',
+        userName: claims?.name || 'Çevrimdışı kullanıcı',
         createdAt: new Date().toISOString(),
       };
       writeLocal(ledgerKey, [stored, ...readLocal<LedgerEntry>(ledgerKey)]);
@@ -144,7 +183,10 @@ export const ledgerService = {
       );
     } catch (error) {
       if (!isNetworkError(error)) throw error;
+      const claims = currentClaims();
       const all = readLocal<AuditEntry>(auditKey).filter((entry) =>
+        Boolean(claims && entry.tenantId === claims.tenantId &&
+          (claims.isGlobal || entry.branchId === claims.branchId)) &&
         (!filters.from || entry.createdAt >= filters.from) &&
         (!filters.to || entry.createdAt <= `${filters.to}T23:59:59.999Z`) &&
         (!filters.branchId || entry.branchId === filters.branchId) &&
@@ -166,12 +208,16 @@ export const ledgerService = {
       return result.data;
     } catch (error) {
       if (!isNetworkError(error)) throw error;
+      const claims = currentClaims();
       const stored: AuditEntry = {
         ...entry,
+        tenantId: claims?.tenantId,
         id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
-        branchId: safeLocalStorage.getItem('fx_selected_branch_id') || '',
-        userId: 'offline',
-        userName: 'Çevrimdışı kullanıcı',
+        branchId: claims
+          ? (claims.isGlobal ? safeLocalStorage.getItem('fx_selected_branch_id') || claims.branchId : claims.branchId)
+          : '',
+        userId: claims?.sub || 'offline',
+        userName: claims?.name || 'Çevrimdışı kullanıcı',
         resourceType: entry.resourceType || '',
         resourceId: entry.resourceId || '',
         createdAt: new Date().toISOString(),
@@ -185,9 +231,24 @@ export const ledgerService = {
     const token = safeLocalStorage.getItem('fx_auth_token');
     const query = new URLSearchParams(queryString(filters));
     query.set('format', 'csv');
-    const response = await fetch(`/api/audit-logs?${query}`, {
-      headers: token ? { Authorization: ['Bearer ', token].join('') } : {},
-    });
+    let response: Response;
+    try {
+      response = await fetch(`/api/audit-logs?${query}`, {
+        headers: token ? { Authorization: ['Bearer ', token].join('') } : {},
+      });
+    } catch {
+      const claims = currentClaims();
+      const entries = readLocal<AuditEntry>(auditKey).filter((entry) =>
+        Boolean(claims && entry.tenantId === claims.tenantId &&
+          (claims.isGlobal || entry.branchId === claims.branchId)) &&
+        (!filters.from || entry.createdAt >= filters.from) &&
+        (!filters.to || entry.createdAt <= `${filters.to}T23:59:59.999Z`) &&
+        (!filters.branchId || entry.branchId === filters.branchId) &&
+        (!filters.userId || entry.userId === filters.userId) &&
+        (!filters.type || entry.action === filters.type),
+      );
+      return csvBlob(entries as unknown as Record<string, unknown>[]);
+    }
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.message || 'Dışa aktarma başarısız.');
@@ -199,9 +260,24 @@ export const ledgerService = {
     const token = safeLocalStorage.getItem('fx_auth_token');
     const query = new URLSearchParams(queryString(filters));
     query.set('format', 'csv');
-    const response = await fetch(`/api/ledger?${query}`, {
-      headers: token ? { Authorization: ['Bearer ', token].join('') } : {},
-    });
+    let response: Response;
+    try {
+      response = await fetch(`/api/ledger?${query}`, {
+        headers: token ? { Authorization: ['Bearer ', token].join('') } : {},
+      });
+    } catch {
+      const claims = currentClaims();
+      const entries = readLocal<LedgerEntry>(ledgerKey).filter((entry) =>
+        Boolean(claims && entry.tenantId === claims.tenantId &&
+          (claims.isGlobal || entry.branchId === claims.branchId)) &&
+        (!filters.from || entry.transactionDate >= filters.from) &&
+        (!filters.to || entry.transactionDate <= `${filters.to}T23:59:59.999Z`) &&
+        (!filters.branchId || entry.branchId === filters.branchId) &&
+        (!filters.userId || entry.userId === filters.userId) &&
+        (!filters.type || entry.type === filters.type),
+      );
+      return csvBlob(entries as unknown as Record<string, unknown>[]);
+    }
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.message || 'Dışa aktarma başarısız.');
