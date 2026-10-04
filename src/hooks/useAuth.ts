@@ -1,26 +1,31 @@
 import { useState } from 'react';
-import { type AuthenticatedUser, fxApi } from '../services/api';
-import { safeLocalStorage, readStoredBoolean } from '../lib/storage';
+import { type AuthenticatedUser, fxApi, branchContext } from '../services/api';
+import { safeLocalStorage, readStoredBoolean, STORAGE_KEYS } from '../lib/storage';
+import { recordAudit } from '../services/ledger';
+
+function readSavedUser(): AuthenticatedUser | null {
+  const saved = safeLocalStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+  if (!saved) return null;
+
+  try {
+    const parsed = JSON.parse(saved);
+    // Legacy sessions without RBAC claims are rejected to force a fresh login.
+    if (!parsed || typeof parsed !== 'object' || !parsed.id || !Array.isArray(parsed.permissions)) return null;
+    return parsed as AuthenticatedUser;
+  } catch {
+    safeLocalStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    return null;
+  }
+}
 
 export function useAuth() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    const isPersistedLoggedIn = readStoredBoolean('fx_is_logged_in', false);
-    const hasToken = Boolean(safeLocalStorage.getItem('fx_auth_token'));
-    return isPersistedLoggedIn && hasToken;
+    const isPersistedLoggedIn = readStoredBoolean(STORAGE_KEYS.IS_LOGGED_IN, false);
+    const hasToken = Boolean(safeLocalStorage.getItem(STORAGE_KEYS.AUTH_TOKEN));
+    return isPersistedLoggedIn && hasToken && readSavedUser() !== null;
   });
 
-  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(() => {
-    const saved = safeLocalStorage.getItem('fx_current_user');
-    if (!saved) return null;
-
-    try {
-      const parsed = JSON.parse(saved);
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch {
-      safeLocalStorage.removeItem('fx_current_user');
-      return null;
-    }
-  });
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(readSavedUser);
 
   const [loginEmail, setLoginEmail] = useState<string>('patron@enterprise.com');
   const [loginPassword, setLoginPassword] = useState<string>('123456');
@@ -38,8 +43,10 @@ export function useAuth() {
       const { user } = await fxApi.login(email, pass);
       setCurrentUser(user);
       setIsLoggedIn(true);
-      safeLocalStorage.setItem('fx_is_logged_in', 'true');
-      safeLocalStorage.setItem('fx_current_user', JSON.stringify(user));
+      branchContext.setIsGlobalUser(user.isGlobal);
+      branchContext.setSelectedBranchId(user.branchId);
+      safeLocalStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true');
+      safeLocalStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : 'Giriş yapılamadı.');
     }
@@ -52,13 +59,16 @@ export function useAuth() {
   };
 
   const handleLogout = () => {
+    if (currentUser) {
+      recordAudit({ branchId: currentUser.isGlobal ? null : currentUser.branchId, userId: currentUser.id, action: 'auth.logout', entityType: 'user', entityId: currentUser.id });
+    }
     setIsLoggedIn(false);
     setCurrentUser(null);
     setLoginEmail('');
     setLoginPassword('');
-    safeLocalStorage.removeItem('fx_is_logged_in');
-    safeLocalStorage.removeItem('fx_current_user');
-    safeLocalStorage.removeItem('fx_auth_token');
+    safeLocalStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN);
+    safeLocalStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    safeLocalStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
   };
 
   return {
