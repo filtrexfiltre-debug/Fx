@@ -5,15 +5,16 @@
  * tüm giden isteklere otomatik enjekte eder.
  */
 
-import { Contact, Branch, CashBank, InterBranchTransfer, TaxAllocation, Employee, Product, Warehouse, StockMovement, WarehouseStock, ShippingRate, PaymentMovement, RevenueExpenseItem, RevenueExpenseCategoryItem, RevenueExpenseType, DebtCreditItem, DebtCreditPaymentRecord, DebtCreditType, DebtCreditStatus, PaymentMethodType } from '../types/fx';
+import { Contact, Branch, CashBank, InterBranchTransfer, TaxAllocation, Employee, User, Product, Warehouse, StockMovement, WarehouseStock, ShippingRate, PaymentMovement, RevenueExpenseItem, RevenueExpenseCategoryItem, RevenueExpenseType, DebtCreditItem, DebtCreditPaymentRecord, DebtCreditType, DebtCreditStatus, PaymentMethodType } from '../types/fx';
 import { BRANCHES, CURRENT_TENANT, INITIAL_CONTACTS, INITIAL_CASH_BANKS, INITIAL_TRANSFERS, INITIAL_TAX_ALLOCATIONS, INITIAL_EMPLOYEES, INITIAL_WAREHOUSES, INITIAL_PRODUCTS, INITIAL_STOCK_MOVEMENTS, INITIAL_WAREHOUSE_STOCKS, INITIAL_SHIPPING_RATES, INITIAL_PAYMENT_MOVEMENTS, INITIAL_REVENUE_EXPENSES, INITIAL_REVENUE_EXPENSE_CATEGORIES, INITIAL_DEBT_CREDITS } from '../data/mockData';
 import { geoService } from './geoService';
+import { recordAudit, recordTransaction, reverseByReference } from './ledger';
 
 // Aktif şube ve kimlik yönetimi
 const STORAGE_KEYS = {
   BRANCH_ID: 'fx_selected_branch_id',
   AUTH_TOKEN: 'fx_auth_token',
-  USER_ROLE: 'fx_user_role',
+  CURRENT_USER: 'fx_current_user',
   IS_GLOBAL_USER: 'fx_is_global_user',
   BRANCHES: 'fx_branches_list',
   EMPLOYEES: 'fx_employees_list',
@@ -385,12 +386,8 @@ export interface ApiResponse<T> {
   isConsolidatedReport: boolean;
 }
 
-export interface AuthenticatedUser {
-  email: string;
-  name: string;
-  role: string;
-  branchId: string;
-}
+/** Login response user; same shape as the backend `users` + roles/permissions claims. */
+export type AuthenticatedUser = User;
 
 /**
  * FX API Client
@@ -407,37 +404,21 @@ export const fxApi = {
       });
 
       const payload = await response.json().catch(() => ({}));
+      if (!response.ok && !payload.message) throw new Error(`Sunucu hatası (HTTP ${response.status}).`);
       if (response.ok && payload.user && (payload.token || payload.accessToken)) {
         const token = payload.token || payload.accessToken;
         localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(payload.user));
+        recordAudit({ branchId: payload.user.isGlobal ? null : payload.user.branchId, userId: payload.user.id, action: 'auth.login', entityType: 'user', entityId: payload.user.id });
         return { user: payload.user, token };
       }
-    } catch {
-      // Backend çevrimdışı olduğunda aşağıdaki test hesapları devreye girer
+      throw new Error(payload.message || 'E-posta veya şifre geçersiz.');
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error('Sunucuya ulaşılamadı. Lütfen API servisinin çalıştığından emin olun.');
+      }
+      throw error;
     }
-
-    // Yerleşik test kullanıcıları (offline / doğrudan geliştirme ortamı uyumluluğu)
-    const normalizedEmail = email.trim().toLowerCase();
-    if (normalizedEmail === 'patron@enterprise.com' && password === '123456') {
-      const user: AuthenticatedUser = { email: normalizedEmail, name: 'Ahmet Yılmaz (Yönetici)', role: 'Patron', branchId: 'all' };
-      const token = 'token-patron-enterprise';
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      return { user, token };
-    }
-    if (normalizedEmail === 'kadikoy@enterprise.com' && password === '123456') {
-      const user: AuthenticatedUser = { email: normalizedEmail, name: 'Burak Demir (Kadıköy Müdürü)', role: 'Şube Yöneticisi', branchId: 'b2222222-2222-2222-2222-222222222222' };
-      const token = 'token-kadikoy-enterprise';
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      return { user, token };
-    }
-    if (normalizedEmail === 'merkez@enterprise.com' && password === '123456') {
-      const user: AuthenticatedUser = { email: normalizedEmail, name: 'Selin Kaya (Merkez Sorumlusu)', role: 'Şube Yöneticisi', branchId: 'b1111111-1111-1111-1111-111111111111' };
-      const token = 'token-merkez-enterprise';
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      return { user, token };
-    }
-
-    throw new Error('E-posta veya şifre geçersiz.');
   },
 
   /**
@@ -590,6 +571,7 @@ export const fxApi = {
     };
     inMemoryCashBanks = [newAccount, ...inMemoryCashBanks];
     localStorage.setItem(STORAGE_KEYS.CASH_BANKS, JSON.stringify(inMemoryCashBanks));
+    recordAudit({ branchId: newAccount.branchId, action: 'cash_account.create', entityType: 'cash_account', entityId: newAccount.id, afterData: newAccount });
     return {
       success: true,
       data: newAccount,
@@ -604,6 +586,7 @@ export const fxApi = {
     if (idx === -1) {
       throw new Error('Kasa / Banka hesabı bulunamadı.');
     }
+    const before = inMemoryCashBanks[idx];
     const updated = {
       ...inMemoryCashBanks[idx],
       ...updates,
@@ -612,6 +595,7 @@ export const fxApi = {
     };
     inMemoryCashBanks[idx] = updated;
     localStorage.setItem(STORAGE_KEYS.CASH_BANKS, JSON.stringify(inMemoryCashBanks));
+    recordAudit({ branchId: updated.branchId, action: 'cash_account.update', entityType: 'cash_account', entityId: id, beforeData: before, afterData: updated });
     return {
       success: true,
       data: updated,
@@ -631,6 +615,7 @@ export const fxApi = {
     }
     inMemoryCashBanks = inMemoryCashBanks.filter(cb => cb.id !== id);
     localStorage.setItem(STORAGE_KEYS.CASH_BANKS, JSON.stringify(inMemoryCashBanks));
+    recordAudit({ branchId: account.branchId, action: 'cash_account.delete', entityType: 'cash_account', entityId: id, beforeData: account });
     return {
       success: true,
       data: true,
@@ -903,6 +888,18 @@ export const fxApi = {
       console.error('LocalStorage kaydetme hatası:', e);
     }
 
+    recordTransaction({
+      branchId: command.sourceBranchId,
+      cashAccountId: command.sourceCashBankId,
+      transactionType: 'TRANSFER_OUT',
+      direction: 'C',
+      amount: command.amount,
+      currencyCode: sourceAccount.currencyCode,
+      referenceType: 'inter_branch_transfer',
+      referenceId: transfer.id,
+      description: transfer.transferNumber,
+    });
+
     return {
       success: true,
       data: transfer,
@@ -952,6 +949,19 @@ export const fxApi = {
       console.error('LocalStorage kaydetme hatası:', e);
     }
 
+    recordTransaction({
+      branchId: transfer.targetBranchId,
+      cashAccountId: transfer.targetCashBankId,
+      transactionType: 'TRANSFER_IN',
+      direction: 'D',
+      amount: transfer.amount,
+      currencyCode: transfer.currencyCode,
+      referenceType: 'inter_branch_transfer',
+      referenceId: transfer.id,
+      description: transfer.transferNumber,
+    });
+    recordAudit({ branchId: transfer.targetBranchId, action: 'finance.transfer.approve', entityType: 'inter_branch_transfer', entityId: transfer.id, afterData: { status: transfer.status } });
+
     return {
       success: true,
       data: transfer,
@@ -1000,6 +1010,9 @@ export const fxApi = {
     } catch (e) {
       console.error(e);
     }
+
+    reverseByReference(transfer.id, `Virman reddedildi: ${transfer.transferNumber}`);
+    recordAudit({ branchId: transfer.sourceBranchId, action: 'finance.transfer.reject', entityType: 'inter_branch_transfer', entityId: transfer.id, afterData: { status: transfer.status } });
 
     return {
       success: true,
@@ -2294,6 +2307,22 @@ export const fxApi = {
       console.error(e);
     }
 
+    const ledgerType = { TAHSILAT: 'COLLECTION', ODEME: 'PAYMENT', MASRAF: 'EXPENSE' } as const;
+    if (newMovement.movementType !== 'VIRMAN' && newMovement.cashBankId) {
+      recordTransaction({
+        branchId,
+        cashAccountId: newMovement.cashBankId,
+        contactId: newMovement.contactId,
+        transactionType: ledgerType[newMovement.movementType],
+        direction: newMovement.movementType === 'TAHSILAT' ? 'D' : 'C',
+        amount: Number(newMovement.amount),
+        currencyCode: newMovement.currency,
+        referenceType: 'payment_movement',
+        referenceId: newMovement.id,
+        description: newMovement.documentNumber,
+      });
+    }
+
     return {
       success: true,
       data: newMovement,
@@ -2389,6 +2418,9 @@ export const fxApi = {
     } catch (e) {
       console.error(e);
     }
+
+    reverseByReference(item.id, `Hareket silindi: ${item.documentNumber}`);
+    recordAudit({ branchId: item.branchId, action: 'finance.payment_movement.delete', entityType: 'payment_movement', entityId: item.id, beforeData: item });
 
     return {
       success: true,

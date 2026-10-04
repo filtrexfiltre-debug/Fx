@@ -225,3 +225,27 @@ export interface UnifiedServisBakimItem {
   rawCihaz?: MusteriCihazi;
   branchId?: string; // Multi-branch support
 }
+
+// ============= API ERROR =============
+
+export enum ApiErrorCode {
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  FORBIDDEN = 'FORBIDDEN',
+  NOT_FOUND = 'NOT_FOUND',
+  BAD_REQUEST = 'BAD_REQUEST',
+  SERVER_ERROR = 'SERVER_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export class ApiError extends Error {
+  constructor(
+    public readonly code: ApiErrorCode,
+    public readonly status: number,
+    message: string,
+    public readonly cause?: unknown
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}

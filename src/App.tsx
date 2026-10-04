@@ -25,41 +25,12 @@ import {
   PanelLeftClose,
   PanelLeft,
 } from 'lucide-react';
-import { AuthenticatedUser, fxApi, branchContext } from './services/api';
+import { fxApi, branchContext } from './services/api';
+import { useAuth } from './hooks/useAuth';
+import { safeLocalStorage, readStoredBoolean } from './lib/storage';
 import { SubeYonetimiModal } from './components/ayarlar/SubeYonetimiModal';
 import { NavigationDrawer, AppTabType } from './components/layout/NavigationDrawer';
 import { Branch } from './types/fx';
-
-const safeLocalStorage = {
-  getItem: (key: string) => {
-    try {
-      return window.localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  },
-  setItem: (key: string, value: string) => {
-    try {
-      window.localStorage.setItem(key, value);
-    } catch {
-      // Storage erişimi kısıtlanmış olabilir; sessizce atla.
-    }
-  },
-  removeItem: (key: string) => {
-    try {
-      window.localStorage.removeItem(key);
-    } catch {
-      // Storage erişimi kısıtlanmış olabilir; sessizce atla.
-    }
-  },
-};
-
-const readStoredBoolean = (key: string, fallback = false): boolean => {
-  const raw = safeLocalStorage.getItem(key);
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
-  return fallback;
-};
 
 const MusteriListesi = lazy(() => import('./components/Cari/MusteriListesi').then((module) => ({ default: module.MusteriListesi })));
 const PersonelListesi = lazy(() => import('./components/Personel/PersonelListesi').then((module) => ({ default: module.PersonelListesi })));
@@ -98,59 +69,17 @@ export default function App() {
     });
   };
 
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    const isPersistedLoggedIn = readStoredBoolean('fx_is_logged_in', false);
-    const hasToken = Boolean(safeLocalStorage.getItem('fx_auth_token'));
-    return isPersistedLoggedIn && hasToken;
-  });
-  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(() => {
-    const saved = safeLocalStorage.getItem('fx_current_user');
-    if (!saved) return null;
-    try {
-      const parsed = JSON.parse(saved);
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch {
-      safeLocalStorage.removeItem('fx_current_user');
-      return null;
-    }
-  });
-
-  const [loginEmail, setLoginEmail] = useState<string>('patron@enterprise.com');
-  const [loginPassword, setLoginPassword] = useState<string>('123456');
-  const [loginError, setLoginError] = useState<string | null>(null);
-
-  const handleLogin = async (email: string, pass: string) => {
-    setLoginError(null);
-    if (!email || !pass) {
-      setLoginError('Lütfen e-posta ve şifrenizi giriniz.');
-      return;
-    }
-
-    try {
-      const { user } = await fxApi.login(email, pass);
-      setCurrentUser(user);
-      setIsLoggedIn(true);
-      const globalUser = user.branchId === 'all';
-      setIsGlobalUser(globalUser);
-      setSelectedBranchId(user.branchId);
-      branchContext.setIsGlobalUser(globalUser);
-      branchContext.setSelectedBranchId(user.branchId);
-      safeLocalStorage.setItem('fx_is_logged_in', 'true');
-      safeLocalStorage.setItem('fx_current_user', JSON.stringify(user));
-    } catch (error) {
-      setLoginError(error instanceof Error ? error.message : 'Giriş yapılamadı.');
-    }
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    setLoginEmail('');
-    setLoginPassword('');
-    safeLocalStorage.removeItem('fx_is_logged_in');
-    safeLocalStorage.removeItem('fx_current_user');
-    safeLocalStorage.removeItem('fx_auth_token');
-  };
+  const {
+    isLoggedIn,
+    currentUser,
+    loginEmail,
+    setLoginEmail,
+    loginPassword,
+    setLoginPassword,
+    loginError,
+    handleLogin,
+    handleLogout,
+  } = useAuth();
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -671,7 +600,7 @@ export default function App() {
                   </div>
                 )}
 
-                {currentUser?.role === 'Patron' && (
+                {currentUser?.isGlobal && (
                   <button
                     onClick={handleGlobalUserToggle}
                     className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
@@ -699,8 +628,11 @@ export default function App() {
                   <div className="flex items-center gap-2.5 pl-3 border-l border-stone-200 shrink-0 animate-fade-in">
                     <div className="hidden sm:flex flex-col text-right">
                       <span className="text-xs font-bold text-stone-800 leading-none mb-1">{currentUser.name}</span>
-                      <span className="text-[9px] text-stone-500 font-extrabold uppercase tracking-wider leading-none">
-                        {currentUser.role === 'Patron' ? 'Patron' : `Şube Çalışanı (${currentBranch?.code})`}
+                      <span
+                        className="text-[9px] text-stone-500 font-extrabold uppercase tracking-wider leading-none"
+                        title={`Yetkiler: ${currentUser.permissions.join(', ') || '-'}`}
+                      >
+                        {currentUser.isGlobal ? currentUser.role : `${currentUser.role} (${currentBranch?.code})`}
                       </span>
                     </div>
                     <button

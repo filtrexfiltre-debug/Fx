@@ -511,6 +511,148 @@ CREATE INDEX IF NOT EXISTS idx_transfers_source_branch ON inter_branch_transfers
 CREATE INDEX IF NOT EXISTS idx_transfers_target_branch ON inter_branch_transfers(tenant_id, target_branch_id);
 CREATE INDEX IF NOT EXISTS idx_transfers_status ON inter_branch_transfers(tenant_id, status);
 
+-- ============================================================================
+-- 20. KİMLİK & YETKİ (IDENTITY / RBAC)
+-- users.branch_id NULL => global kullanıcı (tüm şubeler, örn. Patron).
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id UUID REFERENCES branches(id) ON DELETE RESTRICT,
+    email VARCHAR(254) NOT NULL,
+    full_name VARCHAR(150) NOT NULL,
+    password_hash VARCHAR(256) NOT NULL, -- scrypt (hex)
+    password_salt VARCHAR(64) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_users_tenant_email UNIQUE (tenant_id, email),
+    CONSTRAINT uq_users_tenant_id UNIQUE (tenant_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_users_tenant_branch ON users(tenant_id, branch_id);
+
+CREATE TABLE IF NOT EXISTS roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    is_global BOOLEAN NOT NULL DEFAULT FALSE, -- TRUE: tüm şubelere erişir
+    CONSTRAINT uq_roles_tenant_code UNIQUE (tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(100) NOT NULL UNIQUE, -- örn. finance.transaction.create
+    description VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, role_id)
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+    PRIMARY KEY (role_id, permission_id)
+);
+
+-- ============================================================================
+-- 21. FİNANSAL DEFTER (APPEND-ONLY LEDGER)
+-- Kayıtlar değiştirilmez/silinmez; düzeltme için ters kayıt (reversal_of) atılır.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS financial_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    cash_account_id UUID REFERENCES cashes_and_banks(id) ON DELETE RESTRICT,
+    contact_id UUID REFERENCES contacts(id) ON DELETE RESTRICT,
+    transaction_type VARCHAR(30) NOT NULL
+        CHECK (transaction_type IN ('COLLECTION', 'PAYMENT', 'EXPENSE', 'TRANSFER_OUT', 'TRANSFER_IN', 'REVERSAL')),
+    direction CHAR(1) NOT NULL CHECK (direction IN ('D', 'C')), -- Debit / Credit (kasa açısından giriş=D)
+    amount DECIMAL(18, 4) NOT NULL CHECK (amount > 0),
+    currency_code CHAR(3) NOT NULL DEFAULT 'TRY',
+    reference_type VARCHAR(50),
+    reference_id VARCHAR(100),
+    reversal_of UUID REFERENCES financial_transactions(id) ON DELETE RESTRICT,
+    description TEXT,
+    created_by UUID REFERENCES users(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_fin_tx_tenant_branch ON financial_transactions(tenant_id, branch_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_fin_tx_cash_account ON financial_transactions(cash_account_id);
+
+-- ============================================================================
+-- 22. DENETİM KAYDI (APPEND-ONLY AUDIT LOG)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id UUID REFERENCES branches(id) ON DELETE RESTRICT,
+    user_id UUID REFERENCES users(id) ON DELETE RESTRICT,
+    action VARCHAR(100) NOT NULL, -- örn. auth.login, finance.transaction.create
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(100),
+    before_data JSONB,
+    after_data JSONB,
+    ip_address VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_audit_tenant_created ON audit_logs(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs(tenant_id, entity_type, entity_id);
+
+CREATE OR REPLACE FUNCTION forbid_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION '% tablosu append-only: % işlemine izin verilmez', TG_TABLE_NAME, TG_OP;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_fin_tx_append_only ON financial_transactions;
+CREATE TRIGGER trg_fin_tx_append_only BEFORE UPDATE OR DELETE ON financial_transactions
+    FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+DROP TRIGGER IF EXISTS trg_fin_tx_no_truncate ON financial_transactions;
+CREATE TRIGGER trg_fin_tx_no_truncate BEFORE TRUNCATE ON financial_transactions
+    FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();
+DROP TRIGGER IF EXISTS trg_audit_append_only ON audit_logs;
+CREATE TRIGGER trg_audit_append_only BEFORE UPDATE OR DELETE ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+DROP TRIGGER IF EXISTS trg_audit_no_truncate ON audit_logs;
+CREATE TRIGGER trg_audit_no_truncate BEFORE TRUNCATE ON audit_logs
+    FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();
+
+-- ============================================================================
+-- 23. ROW LEVEL SECURITY İSKELETİ
+-- Uygulama her bağlantıda: SET app.tenant_id = '<uuid>'; SET app.branch_id = '<uuid>' (global kullanıcıda boş).
+-- ============================================================================
+
+DO $$
+DECLARE t text;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['users', 'financial_transactions', 'audit_logs'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
+        EXECUTE format('CREATE POLICY tenant_isolation ON %I USING (tenant_id = NULLIF(current_setting(''app.tenant_id'', true), '''')::uuid)', t);
+    END LOOP;
+END $$;
+
+-- ============================================================================
+-- 24. SEED: İZİNLER (kodlar server/identity.cjs ile birebir aynıdır; roller/kullanıcılar tenant bazında oluşturulur)
+-- ============================================================================
+
+INSERT INTO permissions (code, description) VALUES
+    ('branch.switch', 'Aktif şubeyi değiştirme'),
+    ('finance.transaction.create', 'Finansal hareket oluşturma'),
+    ('finance.transaction.read', 'Finansal hareketleri görüntüleme'),
+    ('finance.transfer.approve', 'Şubeler arası virman onaylama'),
+    ('cash_account.manage', 'Kasa/Banka hesabı yönetimi'),
+    ('audit.read', 'Denetim kayıtlarını görüntüleme')
+ON CONFLICT (code) DO NOTHING;
+
 -- Otomatik updated_at güncelleme tetikleyicisi
 CREATE OR REPLACE FUNCTION set_updated_at_timestamp()
 RETURNS TRIGGER AS $$

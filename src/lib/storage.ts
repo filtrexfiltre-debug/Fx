@@ -52,3 +52,16 @@ export const readStoredJson = <T>(key: string, fallback: T): T => {
     return fallback;
   }
 };
+
+export const safeStorage = safeLocalStorage;
+
+/** Central registry of localStorage keys shared by the auth/branch context. */
+export const STORAGE_KEYS = {
+  AUTH_TOKEN: 'fx_auth_token',
+  CURRENT_USER: 'fx_current_user',
+  IS_LOGGED_IN: 'fx_is_logged_in',
+  BRANCH_ID: 'fx_selected_branch_id',
+  IS_GLOBAL_USER: 'fx_is_global_user',
+  LEDGER: 'fx_financial_transactions',
+  AUDIT_LOGS: 'fx_audit_logs',
+} as const;

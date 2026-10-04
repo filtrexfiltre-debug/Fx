@@ -645,3 +645,72 @@ export interface DebtCreditItem {
 }
 
 
+
+// =========================================================================
+// KİMLİK & YETKİ (IDENTITY / RBAC) — schema.sql: users, roles, permissions
+// =========================================================================
+export interface Permission {
+  code: string; // örn. 'finance.transaction.create'
+  description?: string;
+}
+
+export interface Role {
+  id: string;
+  tenantId: string;
+  code: string; // örn. 'PATRON', 'SUBE_YONETICISI'
+  name: string;
+  isGlobal: boolean; // true: tüm şubelere erişir
+  permissions: string[];
+}
+
+/** Giriş yapmış kullanıcı (login yanıtı). branchId === 'all' => global kullanıcı (DB'de branch_id NULL). */
+export interface User {
+  id: string;
+  tenantId: string;
+  email: string;
+  name: string;
+  role: string; // birincil rol görünen adı
+  roles: string[]; // rol kodları
+  permissions: string[]; // izin kodları
+  isGlobal: boolean;
+  branchId: string;
+}
+
+// =========================================================================
+// FİNANSAL DEFTER & DENETİM — schema.sql: financial_transactions, audit_logs (append-only)
+// =========================================================================
+export type FinancialTransactionType = 'COLLECTION' | 'PAYMENT' | 'EXPENSE' | 'TRANSFER_OUT' | 'TRANSFER_IN' | 'REVERSAL';
+
+export interface FinancialTransaction {
+  id: string;
+  tenantId: string;
+  branchId: string;
+  cashAccountId?: string;
+  contactId?: string;
+  transactionType: FinancialTransactionType;
+  direction: 'D' | 'C'; // Kasa açısından D: giriş, C: çıkış
+  amount: number; // her zaman > 0; yön direction ile belirlenir
+  currencyCode: string;
+  referenceType?: string;
+  referenceId?: string;
+  reversalOf?: string; // düzeltme için ters kayıt
+  description?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  tenantId: string;
+  branchId?: string | null;
+  userId?: string | null;
+  action: string; // örn. 'finance.transaction.create'
+  entityType: string;
+  entityId?: string | null;
+  beforeData?: unknown;
+  afterData?: unknown;
+  createdAt: string;
+}
+
+/** Kasa/banka hesabı modeli (schema.sql: cashes_and_banks). */
+export type CashAccount = CashBank;
