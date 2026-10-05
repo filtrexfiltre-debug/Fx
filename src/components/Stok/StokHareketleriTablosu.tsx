@@ -1,4 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { appTheme } from '../../lib/agGridTheme';
+import { AG_GRID_LOCALE_TR } from '../../lib/agGridLocaleTR';
+import {
+  ColDef,
+  ICellRendererParams,
+  GridReadyEvent,
+  GridApi,
+  RowSelectionOptions,
+} from 'ag-grid-community';
 import {
   Plus,
   Search,
@@ -21,7 +31,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { StockMovement, Product, Warehouse } from '../../types/fx';
 import { api, branchContext } from '../../services/api';
-import { DataTable } from '../common/DataTable';
+import { AgGridColumnSidebar, AgGridSidebarToggleBtn } from '../common/AgGridColumnSidebar';
 
 
 const STORAGE_GRID_KEY = 'fx_stock_movements_grid_state_v1';
@@ -43,6 +53,56 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const sidebarButtonRef = useRef<HTMLButtonElement>(null);
+
+  // AG Grid States & Handlers
+  const [gridApi, setGridApi] = useState<GridApi<StockMovement> | null>(null);
+  const [gridColumnsRevision, setGridColumnsRevision] = useState<number>(0);
+
+  const defaultColDef = useMemo<ColDef>(() => ({
+    sortable: true,
+    filter: true,
+    resizable: true,
+  }), []);
+
+  const rowSelection = useMemo<RowSelectionOptions<StockMovement>>(() => ({
+    mode: 'multiRow',
+    checkboxes: true,
+    headerCheckbox: true,
+    enableClickSelection: true,
+    selectAll: 'all',
+    selectionColumnDef: {
+      pinned: 'left',
+      width: 48,
+      minWidth: 48,
+      maxWidth: 48,
+      resizable: false,
+      sortable: false,
+      suppressColumnsToolPanel: true,
+    },
+  }), []);
+
+  const onGridReady = (params: GridReadyEvent<StockMovement>) => {
+    setGridApi(params.api);
+    try {
+      const saved = localStorage.getItem(STORAGE_GRID_KEY);
+      if (saved) {
+        params.api.applyColumnState({ state: JSON.parse(saved), applyOrder: true });
+      }
+    } catch (e) {
+      console.warn('Grid state restore error:', e);
+    }
+  };
+
+  const saveGridState = () => {
+    if (!gridApi) return;
+    try {
+      const state = gridApi.getColumnState();
+      localStorage.setItem(STORAGE_GRID_KEY, JSON.stringify(state));
+      setGridColumnsRevision(prev => prev + 1);
+    } catch (e) {
+      console.warn('Grid state save error:', e);
+    }
+  };
 
   // Modallar
   const [isNewMovementModalOpen, setIsNewMovementModalOpen] = useState<boolean>(false);
@@ -232,12 +292,12 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
   };
 
   // Kolon Tanımları (Kullanıcı Talebi: Tarih, Stok Kodu & Ürün, Depo Lokasyon, İşlem Türü, Miktar, Birim Fiyat, Toplam Tutar, Belge No & Cari Ünvan)
-  const columns = useMemo(() => [
+  const columnDefs = useMemo<ColDef<StockMovement>[]>(() => [
     {
-      field: 'movementDate' as keyof StockMovement,
+      field: 'movementDate',
       headerName: 'Tarih',
       width: 140,
-      cellRenderer: (params: { data: StockMovement; value: any }) => {
+      cellRenderer: (params: ICellRendererParams<StockMovement>) => {
         const val = params.value;
         if (!val) return '-';
         const d = new Date(val);
@@ -254,11 +314,12 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
       },
     },
     {
-      field: 'productSku' as keyof StockMovement,
+      field: 'productSku',
       headerName: 'Stok Kodu & Ürün',
       width: 260,
-      cellRenderer: (params: { data: StockMovement; value: any }) => {
+      cellRenderer: (params: ICellRendererParams<StockMovement>) => {
         const d = params.data;
+        if (!d) return null;
         return (
           <div className="flex flex-col justify-center h-full py-1">
             <div className="flex items-center gap-2">
@@ -279,10 +340,10 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
       },
     },
     {
-      field: 'warehouseName' as keyof StockMovement,
+      field: 'warehouseName',
       headerName: 'Depo Lokasyon',
       width: 180,
-      cellRenderer: (params: { data: StockMovement; value: any }) => (
+      cellRenderer: (params: ICellRendererParams<StockMovement>) => (
         <div className="flex items-center gap-1.5 text-xs font-medium text-stone-700">
           <WarehouseIcon className="w-3.5 h-3.5 text-stone-400 shrink-0" />
           <span className="truncate">{params.value || 'Depo'}</span>
@@ -290,10 +351,10 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
       ),
     },
     {
-      field: 'movementType' as keyof StockMovement,
+      field: 'movementType',
       headerName: 'İşlem Türü',
       width: 140,
-      cellRenderer: (params: { data: StockMovement; value: any }) => {
+      cellRenderer: (params: ICellRendererParams<StockMovement>) => {
         const t = params.value;
         if (t === 'IN') {
           return (
@@ -328,10 +389,10 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
       },
     },
     {
-      field: 'quantity' as keyof StockMovement,
+      field: 'quantity',
       headerName: 'Miktar',
       width: 110,
-      cellRenderer: (params: { data: StockMovement; value: any }) => {
+      cellRenderer: (params: ICellRendererParams<StockMovement>) => {
         const isPositive = params.data?.movementType === 'IN' || params.data?.movementType === 'TRANSFER_IN';
         return (
           <div className="flex items-center justify-end h-full pr-2">
@@ -347,31 +408,32 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
       },
     },
     {
-      field: 'unitPrice' as keyof StockMovement,
+      field: 'unitPrice',
       headerName: 'Birim Fiyat',
       width: 130,
-      cellRenderer: (params: { data: StockMovement; value: any }) => (
+      cellRenderer: (params: ICellRendererParams<StockMovement>) => (
         <div className="text-right text-xs font-mono font-semibold text-stone-700 pr-2">
           ₺{Number(params.value || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
       ),
     },
     {
-      field: 'totalAmount' as keyof StockMovement,
+      field: 'totalAmount',
       headerName: 'Toplam Tutar',
       width: 140,
-      cellRenderer: (params: { data: StockMovement; value: any }) => (
+      cellRenderer: (params: ICellRendererParams<StockMovement>) => (
         <div className="text-right text-xs font-mono font-bold text-stone-900 pr-2">
           ₺{Number(params.value || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
       ),
     },
     {
-      field: 'documentNumber' as keyof StockMovement,
+      field: 'documentNumber',
       headerName: 'Belge No & Cari Ünvan',
       width: 220,
-      cellRenderer: (params: { data: StockMovement; value: any }) => {
+      cellRenderer: (params: ICellRendererParams<StockMovement>) => {
         const d = params.data;
+        if (!d) return null;
         return (
           <div className="flex flex-col justify-center h-full py-1">
             <div className="flex items-center gap-1 text-xs font-semibold text-stone-800">
@@ -506,13 +568,12 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={exportToExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>CSV</span>
-            </button>
+            <AgGridSidebarToggleBtn
+              isOpen={isSidebarOpen}
+              onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+              gridApi={gridApi}
+              buttonRef={sidebarButtonRef}
+            />
 
             <button
               onClick={exportToPdf}
@@ -544,13 +605,50 @@ export const StokHareketleriTablosu: React.FC<StokHareketleriTablosuProps> = ({ 
         </div>
       </div>
 
-      <div className="bg-white border border-stone-200/90 rounded-lg shadow-xs overflow-hidden w-full p-4">
-        <DataTable
-          columns={columns}
-          rowData={filteredMovements}
-          pagination={true}
-          paginationPageSize={10}
-        />
+      {/* AG Grid Tablosu & Kolon Özelleştirici Sidebar */}
+      <div className="flex gap-4 items-start relative h-[520px]">
+        <div
+          className={`bg-white border border-stone-200/90 rounded-lg shadow-xs overflow-hidden transition-all duration-300 ${
+            isSidebarOpen ? 'flex-1' : 'w-full'
+          }`}
+        >
+          <div style={{ height: '520px', width: '100%' }}>
+            <AgGridReact<StockMovement> theme={appTheme}
+              localeText={AG_GRID_LOCALE_TR}
+              loading={loading}
+              rowData={filteredMovements}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              rowSelection={rowSelection}
+              pagination={true}
+              paginationPageSize={15}
+              paginationPageSizeSelector={[15, 30, 50, 100]}
+              onGridReady={onGridReady}
+              onColumnMoved={saveGridState}
+              onColumnVisible={saveGridState}
+              onColumnResized={saveGridState}
+              onSortChanged={saveGridState}
+              rowHeight={56}
+              headerHeight={42}
+              animateRows={true}
+              enableCellTextSelection={true}
+              rowClass="cursor-pointer hover:bg-stone-50/70"
+              quickFilterText={quickFilterText}
+            />
+          </div>
+        </div>
+
+        {/* ÖZEL SIDEBAR (Gelişmiş Görünüm ve Kolon Özelleştirme Paneli) */}
+        {isSidebarOpen && (
+          <AgGridColumnSidebar
+            gridApi={gridApi}
+            onSaveGridState={saveGridState}
+            onClose={() => setIsSidebarOpen(false)}
+            primaryColIds={['movementDate', 'productSku', 'warehouseName', 'movementType', 'quantity', 'unitPrice', 'totalAmount', 'documentNumber']}
+            sidebarRef={sidebarRef}
+            columnsRevision={gridColumnsRevision}
+          />
+        )}
       </div>
 
       {/* ========================================================================= */}

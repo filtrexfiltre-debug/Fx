@@ -11,6 +11,7 @@ import {
 import { fxApi, branchContext } from './api';
 import { DebtCreditItem } from '../types/fx';
 import { BRANCHES, CURRENT_TENANT } from '../data/mockData';
+import { storageManager } from '../lib/storageManager';
 
 const STORAGE_KEYS = {
   OFFERS: 'fx_trade_offers_list',
@@ -684,14 +685,9 @@ class TradeService {
   // -------------------------------------------------------------
   getOffers(branchId?: string, type?: OfferType): TradeOffer[] {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.OFFERS);
-      let list: TradeOffer[] = saved ? JSON.parse(saved) : INITIAL_OFFERS;
-
-      let contacts: any[] = [];
-      try {
-        const savedContacts = localStorage.getItem('fx_contacts_list');
-        if (savedContacts) contacts = JSON.parse(savedContacts);
-      } catch (e) {}
+      const listRaw = storageManager.getItem<TradeOffer[]>(STORAGE_KEYS.OFFERS, INITIAL_OFFERS);
+      let list = [...listRaw];
+      const contacts = storageManager.getItem<any[]>('fx_contacts_list', []);
 
       const knownMap: Record<string, string> = {
         'c1': 'Ahmet Yılmaz İnşaat ve Otomotiv Ltd. Şti.',
@@ -749,7 +745,7 @@ class TradeService {
   }
 
   saveOffers(offers: TradeOffer[]) {
-    localStorage.setItem(STORAGE_KEYS.OFFERS, JSON.stringify(offers));
+    storageManager.setItem(STORAGE_KEYS.OFFERS, offers);
   }
 
   createOffer(newOfferData: Omit<TradeOffer, 'id' | 'createdAt' | 'updatedAt' | 'offerNumber'>): TradeOffer {
@@ -791,10 +787,51 @@ class TradeService {
     const offer = offers.find((o) => o.id === offerId);
     if (!offer) return null;
 
+    // 1. Dönüşüm Tekrarı Kontrolü: Zaten CONVERTED olan veya faturaya aktarılmış teklifler tekrar dönüştürülemez!
+    if (offer.status === 'CONVERTED' || offer.convertedInvoiceId) {
+      throw new Error(
+        `"${offer.offerNumber}" numaralı teklif daha önce ${offer.convertedInvoiceNumber || 'bir faturaya'} dönüştürülmüştür. Tekrar dönüştürülemez.`
+      );
+    }
+
     const isSales = offer.offerType === 'VERILEN';
     const direction: TradeDirection = isSales ? 'SATIS' : 'ALIS';
     const prefix = isSales ? 'SAT-2026-' : 'ALS-2026-';
     const invoiceNumber = `${prefix}${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // 2. Fatura Düzenleme Tarihi ve Ödeme Vadesi (dueDate) Hesaplaması:
+    // Fatura vadesi, teklifin opsiyon/geçerlilik tarihi (validUntilDate) DEĞİLDİR!
+    // Düzenleme tarihi bugündür; ödeme vadesi ise cari kartındaki vade gününe veya teklifteki ödeme koşullarına göre hesaplanır.
+    const today = new Date();
+    const issueDate = today.toISOString().slice(0, 10);
+
+    let paymentTermDays = 30; // Varsayılan ticari vade: 30 gün
+    try {
+      const savedContacts = localStorage.getItem('fx_contacts_list');
+      if (savedContacts) {
+        const contacts = JSON.parse(savedContacts);
+        const contact = Array.isArray(contacts) ? contacts.find((c: any) => c.id === offer.contactId) : null;
+        if (contact && Number(contact.paymentTermDays) > 0) {
+          paymentTermDays = Number(contact.paymentTermDays);
+        }
+      }
+    } catch (e) {
+      console.warn('Cari vade bilgisi okunamadı:', e);
+    }
+
+    // Teklif ödeme koşulunda açıkça gün tanımlanmışsa (Örn: "60 Gün Vade", "45 gün") öncelikli al
+    if (offer.paymentTerms) {
+      const match = offer.paymentTerms.match(/(\d+)\s*(?:gün|gun|g|day)/i);
+      if (match && match[1]) {
+        const parsed = parseInt(match[1], 10);
+        if (parsed > 0 && parsed <= 365) {
+          paymentTermDays = parsed;
+        }
+      }
+    }
+
+    const dueDateObj = new Date(today.getTime() + paymentTermDays * 86400000);
+    const dueDate = dueDateObj.toISOString().slice(0, 10);
 
     const newInvoice: TradeInvoice = {
       id: `inv-${Date.now()}`,
@@ -811,8 +848,8 @@ class TradeService {
       contactTaxOffice: offer.contactTaxOffice,
       contactTcNumber: offer.contactTcNumber,
       contactAddress: offer.contactAddress,
-      issueDate: new Date().toISOString().slice(0, 10),
-      dueDate: offer.validUntilDate || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      issueDate,
+      dueDate,
       currency: offer.currency,
       exchangeRate: offer.exchangeRate,
       items: offer.items,
@@ -825,10 +862,10 @@ class TradeService {
       paidAmount: 0,
       remainingAmount: offer.grandTotal,
       gibStatus: 'APPROVED',
-      ettn: crypto.randomUUID ? crypto.randomUUID() : `uuid-${Date.now()}`,
+      ettn: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `uuid-${Date.now()}`,
       sourceOfferId: offer.id,
       sourceOfferNumber: offer.offerNumber,
-      notes: `${offer.offerNumber} numaralı teklif onaylanarak faturaya dönüştürülmüştür.`,
+      notes: `${offer.offerNumber} numaralı teklif onaylanarak faturaya dönüştürülmüştür. (Vade: ${paymentTermDays} gün)`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -837,7 +874,7 @@ class TradeService {
     const invoices = this.getInvoices();
     this.saveInvoices([newInvoice, ...invoices]);
 
-    // Teklifin durumunu CONVERTED yap
+    // Teklifin durumunu CONVERTED yap ve fatura bağını kalıcı kaydet
     offer.status = 'CONVERTED';
     offer.convertedInvoiceId = newInvoice.id;
     offer.convertedInvoiceNumber = newInvoice.invoiceNumber;
@@ -904,14 +941,9 @@ class TradeService {
   // -------------------------------------------------------------
   getInvoices(branchId?: string, direction?: TradeDirection): TradeInvoice[] {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.INVOICES);
-      let list: TradeInvoice[] = saved ? JSON.parse(saved) : INITIAL_INVOICES;
-
-      let contacts: any[] = [];
-      try {
-        const savedContacts = localStorage.getItem('fx_contacts_list');
-        if (savedContacts) contacts = JSON.parse(savedContacts);
-      } catch (e) {}
+      const listRaw = storageManager.getItem<TradeInvoice[]>(STORAGE_KEYS.INVOICES, INITIAL_INVOICES);
+      let list = [...listRaw];
+      const contacts = storageManager.getItem<any[]>('fx_contacts_list', []);
 
       const knownMap: Record<string, string> = {
         'c1': 'Ahmet Yılmaz İnşaat ve Otomotiv Ltd. Şti.',
@@ -969,7 +1001,7 @@ class TradeService {
   }
 
   saveInvoices(invoices: TradeInvoice[]) {
-    localStorage.setItem(STORAGE_KEYS.INVOICES, JSON.stringify(invoices));
+    storageManager.setItem(STORAGE_KEYS.INVOICES, invoices);
   }
 
   createInvoice(invoiceData: Omit<TradeInvoice, 'id' | 'createdAt' | 'updatedAt' | 'invoiceNumber'>): TradeInvoice {
@@ -1065,8 +1097,7 @@ class TradeService {
   // -------------------------------------------------------------
   getGibInvoices(direction?: GibDirection): GibInvoice[] {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.GIB_INVOICES);
-      let list: GibInvoice[] = saved ? JSON.parse(saved) : INITIAL_GIB_INVOICES;
+      let list = storageManager.getItem<GibInvoice[]>(STORAGE_KEYS.GIB_INVOICES, INITIAL_GIB_INVOICES);
       if (direction) {
         list = list.filter((g) => g.direction === direction);
       }
@@ -1077,7 +1108,7 @@ class TradeService {
   }
 
   saveGibInvoices(invoices: GibInvoice[]) {
-    localStorage.setItem(STORAGE_KEYS.GIB_INVOICES, JSON.stringify(invoices));
+    storageManager.setItem(STORAGE_KEYS.GIB_INVOICES, invoices);
   }
 
   // 7 Günlük İtiraz Yanıtı Ver (KABUL / RED)
@@ -1212,8 +1243,7 @@ class TradeService {
   // -------------------------------------------------------------
   getGibDispatches(direction?: GibDirection): GibDispatch[] {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.GIB_DISPATCHES);
-      let list: GibDispatch[] = saved ? JSON.parse(saved) : INITIAL_GIB_DISPATCHES;
+      let list = storageManager.getItem<GibDispatch[]>(STORAGE_KEYS.GIB_DISPATCHES, INITIAL_GIB_DISPATCHES);
       if (direction) {
         list = list.filter((d) => d.direction === direction);
       }
@@ -1224,7 +1254,7 @@ class TradeService {
   }
 
   saveGibDispatches(dispatches: GibDispatch[]) {
-    localStorage.setItem(STORAGE_KEYS.GIB_DISPATCHES, JSON.stringify(dispatches));
+    storageManager.setItem(STORAGE_KEYS.GIB_DISPATCHES, dispatches);
   }
 
   createGibDispatch(data: Omit<GibDispatch, 'id' | 'createdAt' | 'dispatchNumber' | 'ettn'>): GibDispatch {

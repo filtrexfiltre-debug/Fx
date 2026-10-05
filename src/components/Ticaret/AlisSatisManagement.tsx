@@ -5,12 +5,9 @@ import { AG_GRID_LOCALE_TR } from '../../lib/agGridLocaleTR';
 import {
   ColDef,
   ICellRendererParams,
-  
-  
-  
-  
   GridReadyEvent,
   GridApi,
+  RowSelectionOptions,
 } from 'ag-grid-community';
 import {
   TrendingUp,
@@ -46,7 +43,7 @@ import {
 } from '../../types/trade';
 import { Branch } from '../../types/fx';
 import { tradeService } from '../../services/tradeService';
-import { fxApi } from '../../services/api';
+import { fxApi, branchContext } from '../../services/api';
 import { NewOfferModal } from './NewOfferModal';
 import { NewInvoiceModal } from './NewInvoiceModal';
 import { OfferDetailModal } from './OfferDetailModal';
@@ -67,7 +64,9 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<AlisSatisTab>('satislar');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(currentBranchId || 'all');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>(
+    currentBranchId || branchContext.getSelectedBranchId() || 'all'
+  );
 
   // Veriler
   const [offers, setOffers] = useState<TradeOffer[]>([]);
@@ -94,8 +93,21 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
     loadData();
   }, [selectedBranchFilter]);
 
+  // Şube değişimlerini hem currentBranchId prop'u hem de branchContext üzerinden dinamik olarak senkronize et
   useEffect(() => {
-    setSelectedBranchFilter(currentBranchId || 'all');
+    const syncBranch = () => {
+      const activeBranch = currentBranchId || branchContext.getSelectedBranchId() || 'all';
+      setSelectedBranchFilter(activeBranch);
+    };
+
+    syncBranch();
+
+    const unsubscribe = branchContext.subscribe(() => {
+      const activeBranch = branchContext.getSelectedBranchId() || 'all';
+      setSelectedBranchFilter(activeBranch);
+    });
+
+    return () => unsubscribe();
   }, [currentBranchId]);
 
   const currentBranchName = useMemo(() => {
@@ -176,7 +188,6 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
       field: 'invoiceNumber',
       headerName: 'Belge No / Senaryo',
       width: 180,
-      pinned: 'left',
       cellRenderer: (params: ICellRendererParams<TradeInvoice>) => {
         const scenario = params.data?.scenario;
         let scenarioLabel = 'E-ARŞİV';
@@ -376,7 +387,6 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
       field: 'offerNumber',
       headerName: 'Belge No',
       width: 160,
-      pinned: 'left',
       cellRenderer: (params: ICellRendererParams<TradeOffer>) => (
         <div className="flex items-center gap-2 h-full">
            <div className="w-7 h-7 rounded bg-stone-100 flex items-center justify-center text-stone-500">
@@ -529,6 +539,26 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
     },
   ], []);
 
+  const rowSelection = useMemo<RowSelectionOptions>(
+    () => ({
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
+      enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
+    }),
+    []
+  );
+
   const onGridReady = (params: GridReadyEvent) => {
     setGridApi(params.api);
   };
@@ -540,10 +570,14 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
 
   // Teklif Dönüştürme
   const handleConvertToInvoice = (offerId: string) => {
-    const created = tradeService.convertOfferToInvoice(offerId);
-    if (created) {
-      loadData();
-      alert(`${created.invoiceNumber} numaralı fatura başarıyla oluşturuldu ve Ödemeler & Tahsilatlar modülüne yansıtıldı!`);
+    try {
+      const created = tradeService.convertOfferToInvoice(offerId);
+      if (created) {
+        loadData();
+        alert(`${created.invoiceNumber} numaralı fatura başarıyla oluşturuldu ve Ödemeler & Tahsilatlar modülüne yansıtıldı!`);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Teklif faturaya dönüştürülürken bir hata oluştu.');
     }
   };
 
@@ -782,10 +816,7 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
               animateRows={true}
               rowHeight={56}
               headerHeight={42}
-              rowSelection={{
-                mode: 'singleRow',
-                checkboxes: false,
-              }}
+              rowSelection={rowSelection}
             />
           </div>
         </div>
@@ -802,6 +833,7 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
 
       {/* MODALLAR */}
       <NewOfferModal
+        key={`new-offer-modal-${selectedBranchFilter}`}
         isOpen={isNewOfferModalOpen}
         onClose={() => setIsNewOfferModalOpen(false)}
         initialType={newOfferInitialType}
@@ -814,6 +846,7 @@ export const AlisSatisManagement: React.FC<AlisSatisManagementProps> = ({
       />
 
       <NewInvoiceModal
+        key={`new-invoice-modal-${selectedBranchFilter}`}
         isOpen={isNewInvoiceModalOpen}
         onClose={() => setIsNewInvoiceModalOpen(false)}
         initialDirection={newInvoiceInitialDirection}

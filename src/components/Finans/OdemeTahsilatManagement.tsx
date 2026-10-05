@@ -8,9 +8,9 @@ import {
   ModuleRegistry,
   AllCommunityModule,
   ValidationModule,
-  
   GridReadyEvent,
   GridApi,
+  RowSelectionOptions,
 } from 'ag-grid-community';
 import {
   Search,
@@ -395,7 +395,6 @@ export const OdemeTahsilatManagement: React.FC = () => {
         headerName: 'Tarih & Saat',
         field: 'movementDate',
         width: 150,
-        pinned: 'left',
         cellRenderer: (params: ICellRendererParams<PaymentMovement>) => {
           if (!params.value) return '-';
           const d = new Date(params.value);
@@ -653,12 +652,39 @@ export const OdemeTahsilatManagement: React.FC = () => {
     };
   }, []);
 
+  const rowSelection = useMemo<RowSelectionOptions<PaymentMovement>>(
+    () => ({
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
+      enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
+    }),
+    []
+  );
+
   const onGridReady = React.useCallback((params: GridReadyEvent<PaymentMovement>) => {
     setGridApi(params.api);
     try {
       const saved = localStorage.getItem(STORAGE_COLUMNS_KEY);
       if (saved) {
-        params.api.applyColumnState({ state: JSON.parse(saved), applyOrder: true });
+        const state = JSON.parse(saved);
+        const cleanState = Array.isArray(state)
+          ? state.map((col: any) => {
+              if (col.colId === 'movementDate') return { ...col, pinned: null };
+              return col;
+            })
+          : state;
+        params.api.applyColumnState({ state: cleanState, applyOrder: true });
       } else {
         params.api.sizeColumnsToFit();
       }
@@ -1009,17 +1035,7 @@ export const OdemeTahsilatManagement: React.FC = () => {
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
-          {/* Excel & PDF */}
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            title="CSV olarak indir"
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100 rounded-lg border border-stone-200 transition-colors cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">CSV</span>
-          </button>
-
+          {/* PDF */}
           <button
             type="button"
             onClick={handleExportPDF}
@@ -1096,10 +1112,7 @@ export const OdemeTahsilatManagement: React.FC = () => {
               headerHeight={42}
               animateRows={true}
               enableCellTextSelection={true}
-              rowSelection={{
-                mode: 'singleRow',
-                checkboxes: false,
-              }}
+              rowSelection={rowSelection}
               noRowsOverlayComponent={() => (
                 <div className="flex flex-col items-center justify-center p-8 text-stone-400">
                   <Wallet className="w-8 h-8 mb-2 stroke-1" />

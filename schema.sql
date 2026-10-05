@@ -74,8 +74,11 @@ CREATE TABLE IF NOT EXISTS neighborhoods (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     district_id UUID NOT NULL REFERENCES districts(id) ON DELETE RESTRICT,
     name VARCHAR(150) NOT NULL,
-    postal_code VARCHAR(5)
+    postal_code VARCHAR(5),
+    CONSTRAINT uq_neighborhood_district_name UNIQUE(district_id, name)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_neighborhoods_district_name ON neighborhoods(district_id, name);
 
 -- ANA CARİ KART TABLOSU (Güncellendi)
 CREATE TABLE IF NOT EXISTS contacts (

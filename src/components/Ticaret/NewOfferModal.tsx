@@ -187,16 +187,19 @@ export const NewOfferModal: React.FC<NewOfferModalProps> = ({
 
     const next = [...items];
     const isSales = offerType === 'VERILEN';
-    const price = isSales ? (prod.salePriceExclVat || 500) : (prod.purchasePrice || 350);
+    const price = isSales
+      ? (prod.salePriceExclVat ?? prod.salePrice ?? (prod as any).sellPrice ?? 0)
+      : (prod.purchasePrice ?? prod.netPurchaseCost ?? (prod as any).buyPrice ?? 0);
+    const vatRate = prod.vatRatePercent !== undefined ? prod.vatRatePercent : (prod.vatRate !== undefined ? prod.vatRate : 20);
 
     next[index] = {
       ...next[index],
       productId: prod.id,
-      skuCode: prod.skuCode || '',
+      skuCode: prod.skuCode || (prod as any).code || '',
       productName: prod.name || '',
       unitPrice: price,
-      unit: prod.unitType || 'Adet',
-      vatRate: prod.vatRatePercent || 20,
+      unit: prod.unitType || (prod as any).unit || 'Adet',
+      vatRate: vatRate,
     };
     // Hesaplat
     handleItemChange(index, 'unitPrice', price);

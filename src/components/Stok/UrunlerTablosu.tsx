@@ -580,7 +580,7 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
     }
 
     // 3. KDV Dahil Satış Fiyatı
-    const vat = field === 'vatRatePercent' ? numVal : Number(next.vatRatePercent) || 20;
+    const vat = field === 'vatRatePercent' ? numVal : (next.vatRatePercent !== undefined && next.vatRatePercent !== null ? Number(next.vatRatePercent) : 20);
     const sPriceIncl = next.salePriceExclVat * (1 + vat / 100);
     next.salePriceInclVat = Math.round(sPriceIncl * 10000) / 10000;
 
@@ -881,7 +881,6 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
       headerName: 'Ürün Kodu',
       minWidth: 150,
       width: 160,
-      pinned: 'left',
       cellRenderer: (params: ICellRendererParams<Product>) => {
         const sku = params.value || '-';
         const isCopied = copiedSku === sku;
@@ -1417,8 +1416,15 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
     try {
       const savedState = localStorage.getItem(STORAGE_GRID_KEY);
       if (savedState) {
+        const state = JSON.parse(savedState);
+        const adjustedState = state.map((col: any) => {
+          if (col.colId === 'skuCode' || col.colId === 'productName' || col.colId === 'category') {
+            return { ...col, pinned: null };
+          }
+          return col;
+        });
         params.api.applyColumnState({
-          state: JSON.parse(savedState),
+          state: adjustedState,
           applyOrder: true,
         });
       }
@@ -1436,12 +1442,23 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
     []
   );
 
-  // AG Grid rowSelection ayarları
+  // AG Grid rowSelection ayarları (Modern AG Grid Checkbox & Multi-Row)
   const rowSelection = useMemo<RowSelectionOptions<Product>>(
     () => ({
-      mode: 'singleRow',
-      checkboxes: false,
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
       enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
     }),
     []
   );
@@ -1522,15 +1539,6 @@ export const UrunlerTablosu: React.FC<UrunlerTablosuProps> = ({ onRefreshStats }
               gridApi={gridApi}
               buttonRef={sidebarButtonRef}
             />
-
-            <button
-              onClick={exportToExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
-              title="CSV indir"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>CSV</span>
-            </button>
 
             <button
               onClick={exportToPdf}

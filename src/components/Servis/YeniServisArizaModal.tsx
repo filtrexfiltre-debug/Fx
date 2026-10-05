@@ -27,7 +27,9 @@ import {
   Check,
   Info,
   CalendarDays,
-  RotateCw
+  RotateCw,
+  Send,
+  Lock
 } from 'lucide-react';
 import { 
   Cari, 
@@ -46,6 +48,7 @@ import { fxApi, branchContext } from '../../services/api';
 import { Branch } from '../../types/fx';
 import { geoService } from '../../services/geoService';
 import { TURKEY_CITIES } from '../../data/mockData';
+import { normalizeServiceType, getServiceTypeLabel } from '../../lib/serviceUtils';
 
 interface YeniServisArizaModalProps {
   isOpen: boolean;
@@ -60,6 +63,7 @@ interface YeniServisArizaModalProps {
   initialCihaz?: MusteriCihazi | null;
   editingServis?: ServisFisi | null;
   isCreateEmpty?: boolean;
+  onOpenKapatmaModal?: (servis: ServisFisi) => void;
   onKaydetServis: (
     yeniServis: Omit<ServisFisi, 'id'>, 
     yeniCihazKaydi?: Omit<MusteriCihazi, 'id'>,
@@ -67,7 +71,8 @@ interface YeniServisArizaModalProps {
     yeniCariKaydi?: Omit<Cari, 'id'>,
     yeniStokKaydi?: Omit<Stok, 'id'>,
     guncellenenCari?: Partial<Cari> & { id: string },
-    editServisId?: string
+    editServisId?: string,
+    guncellenenCihaz?: Partial<MusteriCihazi> & { id: string }
   ) => void;
 }
 
@@ -84,6 +89,7 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
   initialCihaz,
   editingServis,
   isCreateEmpty = false,
+  onOpenKapatmaModal,
   onKaydetServis
 }) => {
   const { 
@@ -125,6 +131,12 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
   const [newDeviceSeriNo, setNewDeviceSeriNo] = useState('');
   const [newDevicePeriod, setNewDevicePeriod] = useState(6);
   const [newDeviceAddressId, setNewDeviceAddressId] = useState('');
+
+  // Kayıt Durumu & İş Emri Gönderim Kontrolü
+  const [isSaved, setIsSaved] = useState<boolean>(Boolean(editingServis));
+  const [savedRecordId, setSavedRecordId] = useState<string | null>(editingServis?.id || null);
+  const [saveSuccessBanner, setSaveSuccessBanner] = useState<string>('');
+  const [formError, setFormError] = useState<string>('');
 
   const handleRegisterNewDeviceInline = () => {
     let targetProductId = newDeviceProductId;
@@ -439,8 +451,8 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
 
   // SAHA TEKNİSYENİ & RANDEVU PLANI
   const today = new Date().toISOString().slice(0, 10);
-  const [randevuTarihi, setRandevuTarihi] = useState(today);
-  const [randevuSaati, setRandevuSaati] = useState('11:00');
+  const [randevuTarihi, setRandevuTarihi] = useState('');
+  const [randevuSaati, setRandevuSaati] = useState('');
   const [atananTeknisyenId, setAtananTeknisyenId] = useState('');
   const [whatsappBildirimiOlustur, setWhatsappBildirimiOlustur] = useState(true);
 
@@ -738,19 +750,15 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
       setEnvantereKaydet(false); // Zaten sistemde kayıtlı cihaz olduğu için mükerrer kayıt oluşmasın
 
       // Servis türü ve açıklama
-      const matchedService = dev.servisTuru 
-        ? (serviceTypes.find(t => t.toLowerCase() === dev.servisTuru?.toLowerCase()) || 
-           serviceTypes.find(t => t.toLowerCase().includes(dev.servisTuru?.toLowerCase() || '')) ||
-           dev.servisTuru)
-        : null;
-      const periyodikService = matchedService || serviceTypes.find(t => 
-        t.toLowerCase().includes('periyodik') || t.toLowerCase().includes('bakım')
-      ) || serviceTypes[0] || 'Periyodik Bakım & Filtre Değişimi';
+      const periyodikService = dev.servisTuru 
+        ? getServiceTypeLabel(dev.servisTuru)
+        : (serviceTypes[0] || 'Periyodik Bakım & Filtre Değişimi');
       setTalepServisTuru(periyodikService);
 
-      const isAriza = periyodikService.toLowerCase().includes('arıza') || periyodikService.toLowerCase().includes('ariza');
-      const isMontaj = periyodikService.toLowerCase().includes('montaj') || periyodikService.toLowerCase().includes('kurulum');
-      const isKesif = periyodikService.toLowerCase().includes('keşif') || periyodikService.toLowerCase().includes('kesif');
+      const normType = normalizeServiceType(periyodikService);
+      const isAriza = normType === 'ARIZA_ONARIM';
+      const isMontaj = normType === 'MONTAJ_KURULUM';
+      const isKesif = normType === 'KESIF_DURUM_TESPITI';
 
       const arizaAciklamasi = dev.ozelNotlar
         ? `${dev.cihazAdi} [${periyodikService}] randevusu. Not: ${dev.ozelNotlar}`
@@ -781,7 +789,7 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
       setSelectedCariId(editingServis.cariId || '');
       setCariUnvan(editingServis.cariTitle || '');
       setYetkiliKisi(editingServis.yetkili || '');
-      setCepTelefonu(editingServis.telefon ? (formatPhoneNumber(editingServis.telefon) || editingServis.telefon) : '+90');
+      setCepTelefonu(editingServis.telefon ? (formatPhoneNumber(editingServis.telefon) || editingServis.telefon) : '');
       setAdresTipi(editingServis.adresTipi || 'Merkez / Fatura Adresi');
       
       const cityIdFound = getCityIdFromName(editingServis.il || 'İzmir');
@@ -792,53 +800,110 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
       setBirlesikAdres(editingServis.acikAdres || '');
       setManuelAdresDegistirildi(true);
 
+      // Cari detayları mevcutsa diğer telefon ve adres alanlarını doldur
+      const matchedCari = cariler.find(c => c.id === editingServis.cariId) || null;
+      if (matchedCari) {
+        setCepTelefonu2(matchedCari.phone2 ? (formatPhoneNumber(matchedCari.phone2) || matchedCari.phone2) : '');
+        setEvTelefonu(matchedCari.homePhone ? (formatPhoneNumber(matchedCari.homePhone) || matchedCari.homePhone) : '');
+        setIsTelefonu(matchedCari.workPhone ? (formatPhoneNumber(matchedCari.workPhone) || matchedCari.workPhone) : '');
+        setKapiNo(matchedCari.doorNo || '');
+        setDaireNo(matchedCari.apartmentNo || '');
+        setApartmanAdi(matchedCari.buildingName || '');
+        setBlokAdi(matchedCari.blockName || '');
+        setSiteAdi(matchedCari.siteName || '');
+        setReferans(matchedCari.referenceNote || '');
+      } else {
+        setCepTelefonu2('');
+        setEvTelefonu('');
+        setIsTelefonu('');
+        setKapiNo('');
+        setDaireNo('');
+        setApartmanAdi('');
+        setBlokAdi('');
+        setSiteAdi('');
+        setReferans('');
+      }
+
       // Cihaz Bilgisi
       if (editingServis.cihazId) {
         setSecilenCihazId(editingServis.cihazId);
         setCihazSecimModu('KAYITLI_CIHAZ');
+        const matchedCihaz = cihazlar.find(c => c.id === editingServis.cihazId);
+        if (matchedCihaz) {
+          setCihazAdi(matchedCihaz.cihazAdi);
+          setSeriNo(matchedCihaz.seriNo || editingServis.seriNo || '');
+          setBakimPeriyoduAy(matchedCihaz.bakimPeriyoduAy || 6);
+        } else {
+          setCihazAdi(editingServis.cihazAdi || '');
+          setSeriNo(editingServis.seriNo || '');
+        }
       } else {
         setCihazSecimModu('SERBEST_DIS');
+        setCihazAdi(editingServis.cihazAdi || '');
+        setSeriNo(editingServis.seriNo || '');
       }
-      setCihazAdi(editingServis.cihazAdi || '');
-      setSeriNo(editingServis.seriNo || '');
       
       // Bildirilen Arıza / Servis Türü
-      if (editingServis.bildirilenAriza) {
-        setBildirilenAriza(editingServis.bildirilenAriza);
+      let cleanAriza = editingServis.bildirilenAriza || '';
+      let detectedType = '';
+      const prefixMatch = cleanAriza.match(/^\[(.*?)\]\s*-\s*(.*)$/);
+      if (prefixMatch) {
+        detectedType = prefixMatch[1];
+        cleanAriza = prefixMatch[2];
       }
-      if (editingServis.servisTipi === 'PERIYODIK_BAKIM' || editingServis.servisTipi === 'FILTRE_DEGISIMI') {
-        setTalepServisTuru('Periyodik Bakım & Filtre Değişimi');
-      } else if (editingServis.servisTipi === 'MONTAJ_KURULUM') {
-        setTalepServisTuru('Montaj & Yeni Kurulum');
-      } else if (editingServis.servisTipi === 'KESIF_DURUM_TESPITI') {
-        setTalepServisTuru('Keşif & Su Analizi');
+      setBildirilenAriza(cleanAriza);
+
+      if (detectedType) {
+        setTalepServisTuru(getServiceTypeLabel(detectedType));
+      } else if (editingServis.servisTuru || editingServis.servisTipi) {
+        setTalepServisTuru(getServiceTypeLabel(editingServis.servisTuru || editingServis.servisTipi));
       } else {
-        setTalepServisTuru('Arıza & Onarım (Cihaz Bozuk / Şikayet Var)');
+        setTalepServisTuru('Periyodik Bakım & Filtre Değişimi');
       }
 
       // Randevu & Teknisyen
       if (editingServis.randevuTarihi) {
         const parts = editingServis.randevuTarihi.split(' ');
-        setRandevuTarihi(parts[0] || today);
-        setRandevuSaati(parts[1] || '11:00');
+        setRandevuTarihi(parts[0] || '');
+        setRandevuSaati(parts[1] || '');
+      } else {
+        setRandevuTarihi('');
+        setRandevuSaati('');
       }
+
       if (editingServis.atananTeknisyenId) {
         setAtananTeknisyenId(editingServis.atananTeknisyenId);
+      } else {
+        setAtananTeknisyenId('');
       }
+
       if (editingServis.branchId) {
         setSelectedBranchId(editingServis.branchId);
       }
+
       setWhatsappBildirimiOlustur(false);
       setEnvantereKaydet(false);
+      setIsEditCariDetailsOpen(false);
+      setIsExtraPhonesOpen(false);
+      setIsDetailedAddressOpen(false);
+      setShowAddDeviceForm(false);
+      setIsSaved(true);
+      setSavedRecordId(editingServis.id);
+      setSaveSuccessBanner('');
       return;
     }
 
-    if (isCreateEmpty) {
+    // Yeni servis kaydı modunda her zaman kayıt durumu sıfırlanmalıdır
+    setIsSaved(false);
+    setSavedRecordId(null);
+    setSaveSuccessBanner('');
+
+    if (isCreateEmpty || (!initialCariId && !initialCihaz && !editingServis)) {
       setSelectedCariId('');
       setCariModu('KAYITLI');
       setCariUnvan('');
       setYetkiliKisi('');
-      setCepTelefonu('+90');
+      setCepTelefonu('');
       setCepTelefonu2('');
       setEvTelefonu('');
       setIsTelefonu('');
@@ -856,27 +921,35 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
       setBirlesikAdres('');
       setReferans('');
       setSecilenCihazId('');
-      setCihazSecimModu('SERBEST_DIS');
+      setCihazSecimModu('KAYITLI_CIHAZ');
       setCihazAdi('');
       setMarkaModel('');
       setSeriNo('');
       setBildirilenAriza('');
       setSecilenAdresId('');
-      setEnvantereKaydet(true);
-      setRandevuTarihi(today);
-      setRandevuSaati('11:00');
+      setEnvantereKaydet(false);
+      setRandevuTarihi('');
+      setRandevuSaati('');
       setAtananTeknisyenId('');
       setWhatsappBildirimiOlustur(true);
       setTalepServisTuru('');
       setSelectedBranchId('');
       setCariArama('');
       setManuelAdresDegistirildi(false);
+      setIsEditCariDetailsOpen(false);
+      setIsExtraPhonesOpen(false);
+      setIsDetailedAddressOpen(false);
+      setShowAddDeviceForm(false);
+      setNewDeviceSeriNo('');
+      setNewDeviceProductId('');
+      setNewProductName('');
+      setIsAddingNewProductInline(false);
       return;
     }
 
     const targetCihaz = initialCihaz || (initialCihazId ? cihazlar.find(d => d.id === initialCihazId) : null);
-    const targetCariId = initialCariId || targetCihaz?.cariId || (cariler.length > 0 ? cariler[0].id : '');
-    const targetCari = cariler.find(c => c.id === targetCariId) || null;
+    const targetCariId = initialCariId || targetCihaz?.cariId || '';
+    const targetCari = targetCariId ? (cariler.find(c => c.id === targetCariId) || null) : null;
 
     if (targetCariId) {
       setSelectedCariId(targetCariId);
@@ -1027,16 +1100,17 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
 
   // Stoklar aramasından filtrelenen ürünler
   const filtrelenenUrunler = useMemo(() => {
-    if (!stoklar || stoklar.length === 0) return [];
-    if (!urunArama.trim()) return stoklar.slice(0, 15);
+    const pool = (localStoklar && localStoklar.length > 0) ? localStoklar : (stoklar || []);
+    if (pool.length === 0) return [];
+    if (!urunArama.trim()) return pool.slice(0, 15);
     const q = urunArama.toLowerCase();
-    return stoklar.filter(s => 
+    return pool.filter(s => 
       s.name.toLowerCase().includes(q) || 
       s.code.toLowerCase().includes(q) ||
       (s.brand && s.brand.toLowerCase().includes(q)) ||
       (s.category && s.category.toLowerCase().includes(q))
     ).slice(0, 15);
-  }, [stoklar, urunArama]);
+  }, [localStoklar, stoklar, urunArama]);
 
   // Ürünler tablosundan bir ürün seçildiğinde
   const handleSelectUrun = (urun: Stok) => {
@@ -1102,20 +1176,27 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePerformSave = (isDispatch: boolean = false) => {
+    setFormError('');
 
     if (!cariUnvan.trim()) {
-      alert('Lütfen Cari Unvanını (Müşteri / Firma Adı) giriniz.');
+      setFormError('Lütfen Müşteri / Cari Ünvanı bilgisini giriniz veya kayıtlı bir cari seçiniz.');
       return;
     }
 
-    if (!cepTelefonu.trim() || cepTelefonu.trim() === '+90') {
-      alert('Lütfen geçerli bir İletişim / Cep Telefonu numarası giriniz.');
-      return;
-    }
+    const effectivePhone = (cepTelefonu.trim() && cepTelefonu.trim() !== '+90') 
+      ? cepTelefonu.trim() 
+      : (editingServis?.telefon || '+90 (532) 000 00 00');
 
-    const selectedTeknisyen = teknisyenListesi.find(t => t.id === atananTeknisyenId) || defaultTeknisyen;
+    const effectiveServisTuru = talepServisTuru || editingServis?.servisTuru || 'Periyodik Bakım & Filtre Değişimi';
+    const effectiveRandevuTarihi = randevuTarihi || new Date().toISOString().slice(0, 10);
+    const effectiveRandevuSaati = randevuSaati || '10:00';
+
+    const selectedTeknisyen = teknisyenListesi.find(t => t.id === atananTeknisyenId) 
+      || (editingServis?.atananTeknisyenId ? teknisyenListesi.find(t => t.id === editingServis.atananTeknisyenId) : null)
+      || teknisyenListesi[0] 
+      || defaultTeknisyen;
+
     const tekFullName = getPersonelName(selectedTeknisyen);
     const isCaner = tekFullName.toLowerCase().includes('caner');
     
@@ -1127,7 +1208,7 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
     const branchToSave = selectedBranchId || (branches[0]?.id || 'b1111111-1111-1111-1111-111111111111');
     const servisNo = editingServis?.servisNo || `SRV-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
 
-    let targetCariId = selectedCariId;
+    let targetCariId = selectedCariId || editingServis?.cariId || '';
     let yeniCariObj: Omit<Cari, 'id'> | undefined = undefined;
 
     // EĞER YENİ CARİ İSE Cari Yönetimi için yeni cari oluştur
@@ -1140,7 +1221,7 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
         type: 'Müşteri',
         status: 'Aktif',
         authorizedPerson: yetkiliKisi.trim(),
-        phone: cepTelefonu.trim(),
+        phone: effectivePhone,
         phone2: cepTelefonu2.trim(),
         homePhone: evTelefonu.trim(),
         workPhone: isTelefonu.trim(),
@@ -1152,7 +1233,7 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
         paymentTermDays: 30,
         riskStatus: 'DUSUK',
         isEInvoice: false,
-        addressType: adresTipi,
+        addressType: adresTipi || 'Merkez / Fatura Adresi',
         city: sehir.trim() || 'İzmir',
         district: ilce.trim(),
         neighborhood: mahalle.trim(),
@@ -1173,12 +1254,13 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
     const finalCihazAdi = cihazAdi.trim() || 'Su Arıtma / Filtrasyon Sistemi';
     const finalSeriNo = seriNo.trim() || `SN-${Math.floor(100000 + Math.random() * 900000)}`;
     const isInlineDevice = Boolean(secilenCihazId && secilenCihazId.startsWith('cihaz-inline-'));
-    const isExistingDevice = Boolean(secilenCihazId && cihazSecimModu === 'KAYITLI_CIHAZ' && !isInlineDevice);
-    const finalCihazId = isExistingDevice ? secilenCihazId : 'cihaz-' + Date.now();
+    const targetCihazId = (isInlineDevice ? '' : secilenCihazId) || editingServis?.cihazId || initialCihaz?.id;
+    const isExistingDevice = Boolean(targetCihazId && (cihazSecimModu === 'KAYITLI_CIHAZ' || editingServis || initialCihaz) && !isInlineDevice);
+    const finalCihazId = isExistingDevice && targetCihazId ? targetCihazId : (isInlineDevice ? ('cihaz-' + Date.now()) : (targetCihazId || ('cihaz-' + Date.now())));
 
     const inlineDevice = isInlineDevice ? localCihazlar.find(d => d.id === secilenCihazId) : null;
 
-    // Müşteri Cihazı Envanter Kaydı (Yalnızca yeni / harici / inline cihazlar için envantere eklenecekse)
+    // Müşteri Cihazı Envanter Kaydı (Yeni Cihaz & Model Bilgisi sisteme eklenir)
     let yeniCihazObj: Omit<MusteriCihazi, 'id'> | undefined = undefined;
     if (inlineDevice) {
       yeniCihazObj = {
@@ -1192,17 +1274,19 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
         yetkiliKisi: inlineDevice.yetkiliKisi || yetkiliKisi.trim(),
         yetkiliTelefon: inlineDevice.yetkiliTelefon || cepTelefonu.trim(),
         cihazAdi: inlineDevice.cihazAdi,
+        markaModel: inlineDevice.markaModel || markaModel || 'Filtrex',
         seriNo: inlineDevice.seriNo || finalSeriNo,
-        montajTarihi: inlineDevice.montajTarihi || randevuTarihi,
+        montajTarihi: inlineDevice.montajTarihi || randevuTarihi || new Date().toISOString().slice(0, 10),
         bakimPeriyoduAy: inlineDevice.bakimPeriyoduAy || bakimPeriyoduAy || 6,
-        sonBakimTarihi: inlineDevice.sonBakimTarihi || randevuTarihi,
-        gelecekBakimTarihi: inlineDevice.gelecekBakimTarihi || randevuTarihi,
+        sonBakimTarihi: inlineDevice.sonBakimTarihi || randevuTarihi || new Date().toISOString().slice(0, 10),
+        gelecekBakimTarihi: inlineDevice.gelecekBakimTarihi || randevuTarihi || new Date().toISOString().slice(0, 10),
         durum: 'AKTIF',
-        ozelNotlar: `Servis Kaydı ile Inline Eklendi: ${servisNo}. Arıza: ${bildirilenAriza || 'Genel Servis'}`,
-        branchId: branchToSave
+        ozelNotlar: `Yeni Servis Kaydı İle Eklendi (No: ${servisNo}) - Model: ${inlineDevice.markaModel || markaModel || 'Filtrex'}`,
+        branchId: branchToSave,
+        servisTuru: getServiceTypeLabel(inlineDevice.servisTuru || talepServisTuru)
       };
-    } else if (envantereKaydet && !isExistingDevice) {
-      const nextD = new Date(randevuTarihi);
+    } else if (!isExistingDevice && (cihazAdi.trim() || finalCihazAdi)) {
+      const nextD = new Date(randevuTarihi || new Date());
       nextD.setMonth(nextD.getMonth() + (bakimPeriyoduAy || 6));
 
       yeniCihazObj = {
@@ -1216,14 +1300,16 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
         yetkiliKisi: yetkiliKisi.trim(),
         yetkiliTelefon: cepTelefonu.trim(),
         cihazAdi: finalCihazAdi.includes(markaModel) ? finalCihazAdi : `${finalCihazAdi} (${markaModel})`,
+        markaModel: markaModel || 'Filtrex',
         seriNo: finalSeriNo,
-        montajTarihi: randevuTarihi,
+        montajTarihi: randevuTarihi || new Date().toISOString().slice(0, 10),
         bakimPeriyoduAy: bakimPeriyoduAy || 6,
-        sonBakimTarihi: randevuTarihi,
+        sonBakimTarihi: randevuTarihi || new Date().toISOString().slice(0, 10),
         gelecekBakimTarihi: nextD.toISOString().slice(0, 10),
         durum: 'AKTIF',
-        ozelNotlar: `Servis Kaydı: ${servisNo}. Arıza: ${bildirilenAriza || 'Genel Servis'}. Ref: ${referans}`,
-        branchId: branchToSave
+        ozelNotlar: `Yeni Servis Kaydı İle Eklendi (No: ${servisNo}) - Model: ${markaModel || 'Filtrex'}. Ref: ${referans}`,
+        branchId: branchToSave,
+        servisTuru: getServiceTypeLabel(talepServisTuru)
       };
     }
 
@@ -1299,23 +1385,17 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
       kasaAdi: tekKasaAdi,
       kalemler: [],
       createdAt: new Date().toISOString().slice(0, 10),
-      servisTipi: talepServisTuru.toLowerCase().includes('bakım') || talepServisTuru.toLowerCase().includes('bakim')
-        ? 'PERIYODIK_BAKIM'
-        : talepServisTuru.toLowerCase().includes('filtre') || talepServisTuru.toLowerCase().includes('değişim') || talepServisTuru.toLowerCase().includes('degisim')
-        ? 'FILTRE_DEGISIMI'
-        : talepServisTuru.toLowerCase().includes('montaj') || talepServisTuru.toLowerCase().includes('kurulum')
-        ? 'MONTAJ_KURULUM'
-        : talepServisTuru.toLowerCase().includes('keşif') || talepServisTuru.toLowerCase().includes('kesif')
-        ? 'KESIF_DURUM_TESPITI'
-        : 'ARIZA_ONARIM',
+      servisTipi: normalizeServiceType(effectiveServisTuru),
+      servisTuru: getServiceTypeLabel(effectiveServisTuru),
       cihazKaynagi: isExistingDevice ? 'BIZDEN_ALMIS' : 'DIS_CIHAZ_BASKASI_SATMIS',
-      bildirilenAriza: `[${talepServisTuru}] - ${bildirilenAriza.trim()}`,
+      bildirilenAriza: `[${effectiveServisTuru}] - ${bildirilenAriza.trim()}`,
       branchId: branchToSave
     };
 
-    // WhatsApp Bildirim Nesnesi
+    const workOrderMsg = `📋 *FİLTREX İŞ EMRİ BİLDİRİMİ*\n━━━━━━━━━━━━━━━━━━━━\n*Servis No:* ${servisNo}\n*Müşteri / Cari:* ${cariUnvan.trim()}\n*Yetkili:* ${yetkiliKisi.trim()} (${cepTelefonu.trim()})\n*Adres:* ${birlesikAdres.trim()}\n*Cihaz / Model:* ${finalCihazAdi} (S/N: ${finalSeriNo})\n*Servis Türü:* ${talepServisTuru}\n*Randevu:* ${randevuTarihi} ${randevuSaati}\n*Atanan Teknisyen:* ${tekFullName}\n*Talep / Arıza Detayı:* ${bildirilenAriza.trim() || 'Periyodik kontrol ve bakım'}\n━━━━━━━━━━━━━━━━━━━━\nİş emri sahaya ve teknisyene atanmıştır.`;
+
     let yeniBildirim: Omit<ServisBildirim, 'id'> | undefined = undefined;
-    if (whatsappBildirimiOlustur) {
+    if (whatsappBildirimiOlustur || isDispatch) {
       yeniBildirim = {
         servisId: '',
         cariId: targetCariId,
@@ -1323,8 +1403,8 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
         telefon: cepTelefonu.trim(),
         kanal: 'WHATSAPP',
         tip: 'RANDEVU_BILGISI',
-        mesaj: `Sayın Yetkili (${cariUnvan.trim()}), ${servisNo} numaralı servis talebiniz oluşturulmuştur. Randevu: ${randevuTarihi} ${randevuSaati}. Teknisyen: ${tekFullName}. Adres: ${birlesikAdres.trim()}. Filtrex Arıtma Servis Hizmetleri.`,
-        durum: 'ONAY_BEKLIYOR',
+        mesaj: workOrderMsg,
+        durum: isDispatch ? 'ILETILDI' : 'ONAY_BEKLIYOR',
         gonderenKullanici: 'Sistem',
         olusturmaTarihi: new Date().toISOString().slice(0, 16).replace('T', ' '),
         branchId: branchToSave
@@ -1333,7 +1413,7 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
 
     // Eğer kayıtlı cari üzerinden telefon veya adres güncellendiyse
     let guncellenenCariObj: (Partial<Cari> & { id: string }) | undefined = undefined;
-    if (cariModu === 'KAYITLI' && targetCariId) {
+    if (targetCariId) {
       guncellenenCariObj = {
         id: targetCariId,
         title: cariUnvan.trim(),
@@ -1357,6 +1437,33 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
       };
     }
 
+    // Eğer mevcut kayıtlı cihazın periyodu veya detayları güncellendiyse
+    let guncellenenCihazObj: (Partial<MusteriCihazi> & { id: string }) | undefined = undefined;
+    if (finalCihazId && isExistingDevice) {
+      const existingDev = localCihazlar.find(d => d.id === finalCihazId) || cihazlar.find(d => d.id === finalCihazId);
+      const baseDate = existingDev?.sonBakimTarihi || existingDev?.montajTarihi || randevuTarihi || new Date().toISOString().slice(0, 10);
+      const nextTargetDate = new Date(baseDate);
+      nextTargetDate.setMonth(nextTargetDate.getMonth() + (bakimPeriyoduAy || 6));
+      const calculatedNextDate = nextTargetDate.toISOString().slice(0, 10);
+
+      guncellenenCihazObj = {
+        id: finalCihazId,
+        cihazAdi: finalCihazAdi.includes(markaModel) ? finalCihazAdi : `${finalCihazAdi} (${markaModel})`,
+        markaModel: markaModel || 'Filtrex',
+        seriNo: finalSeriNo,
+        bakimPeriyoduAy: bakimPeriyoduAy || 6,
+        gelecekBakimTarihi: calculatedNextDate,
+        servisTuru: getServiceTypeLabel(talepServisTuru)
+      };
+    }
+
+    const activeEditId = editingServis ? editingServis.id : (savedRecordId || `srv-${Date.now()}`);
+    if (!savedRecordId && !editingServis) {
+      setSavedRecordId(activeEditId);
+    }
+
+    const targetEditId = editingServis ? editingServis.id : (isSaved && savedRecordId ? savedRecordId : undefined);
+
     onKaydetServis(
       yeniServis, 
       yeniCihazObj, 
@@ -1364,9 +1471,31 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
       yeniCariObj, 
       yeniStokObj, 
       guncellenenCariObj,
-      editingServis ? editingServis.id : undefined
+      targetEditId,
+      guncellenenCihazObj
     );
-    onClose();
+
+    if (isDispatch) {
+      if (whatsappBildirimiOlustur && cepTelefonu.trim()) {
+        const sanitized = cepTelefonu.replace(/\D/g, '');
+        if (sanitized) {
+          window.open(`https://api.whatsapp.com/send?phone=${sanitized}&text=${encodeURIComponent(workOrderMsg)}`, '_blank');
+        }
+      }
+      onClose();
+    } else {
+      if (editingServis) {
+        onClose();
+      } else {
+        setIsSaved(true);
+        setSaveSuccessBanner(`✅ Servis kaydı başarıyla oluşturuldu! (Servis No: ${servisNo}) — Şimdi sahaya iletmek için "İş Emri Gönder" butonuna tıklayabilir veya pencereyi kapatabilirsiniz.`);
+      }
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handlePerformSave(false);
   };
 
   return (
@@ -1401,19 +1530,77 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
               )}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {editingServis && onOpenKapatmaModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenKapatmaModal(editingServis);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-250 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Bu servisi kapatın, kullanılan parçaları ve tahsilatı girin"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hidden sm:inline">Servisi Kapat / Tahsilat</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* FORM GÖVDESİ */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="overflow-y-auto p-4 sm:p-6 space-y-5 flex-1 scrollbar-thin scrollbar-thumb-slate-300">
             
+            {/* KAYIT BAŞARILI BİLGİ BANNERI */}
+            {saveSuccessBanner && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5 text-xs text-emerald-900">
+                  <div className="p-1 rounded-lg bg-emerald-100 text-emerald-700 shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="font-bold">{saveSuccessBanner}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSaveSuccessBanner('')}
+                  className="text-emerald-600 hover:text-emerald-800 text-xs font-bold px-2 py-1 rounded hover:bg-emerald-100 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* DOĞRULAMA / HATA BANNERI */}
+            {formError && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5 text-xs text-rose-900">
+                  <div className="p-1 rounded-lg bg-rose-100 text-rose-700 shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="font-bold">{formError}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormError('')}
+                  className="text-rose-600 hover:text-rose-800 text-xs font-bold px-2 py-1 rounded hover:bg-rose-100 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* MÜKERRER KAYIT UYARI BANNERI */}
             {secilenCihazId && !editingServis && servisler && servisler.some(s => s.cihazId === secilenCihazId && (s.durum === 'RANDEVU_PLANLANDI' || s.durum === 'YOLDA_SAHADA' || s.durum === 'BEKLEMEDE')) && (
               <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 flex items-center justify-between gap-3 shadow-2xs">
@@ -1556,87 +1743,96 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                         </select>
                       </div>
 
-                      {/* AKILLI CARİ ÖZET BİLGİ KARTI - TEK BİRLEŞİK KART (İÇ KUTU KALDIRILDI) */}
-                      <div className="space-y-4 pt-1">
-                        {/* Üst Kısım: Ünvan, Yetkili, Telefonlar ve Sağda Düzenle Butonu */}
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="space-y-2 flex-1 min-w-0">
-                            {/* Cari Ünvan */}
-                            <div className="text-xs font-bold text-slate-900 leading-snug">
-                              {cariUnvan || 'Cari Seçilmedi'}
-                            </div>
- 
-                            {/* Yetkili & Telefonlar */}
-                            <div className="space-y-1">
-                              {yetkiliKisi && (
-                                <div className="flex items-center gap-1 text-slate-700 font-medium text-xs">
-                                  <User className="w-3.5 h-3.5 text-slate-500" />
-                                  <span>{yetkiliKisi}</span>
+                      {/* AKILLI CARİ ÖZET BİLGİ KARTI */}
+                      {!selectedCariId ? (
+                        <div className="p-4 bg-white border border-dashed border-slate-300 rounded-xl text-center space-y-1 shadow-2xs">
+                          <p className="text-xs font-bold text-slate-700">Cari Hesap Seçilmedi</p>
+                          <p className="text-[11px] text-slate-500">
+                            Lütfen yukarıdaki arama kutusundan veya listeden bir cari seçin ya da sağ üstteki "+ Yeni Cari" butonu ile yeni müşteri kartı açınız.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4 pt-1">
+                          {/* Üst Kısım: Ünvan, Yetkili, Telefonlar ve Sağda Düzenle Butonu */}
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-2 flex-1 min-w-0">
+                              {/* Cari Ünvan */}
+                              <div className="text-xs font-bold text-slate-900 leading-snug">
+                                {cariUnvan || 'Cari Seçilmedi'}
+                              </div>
+   
+                              {/* Yetkili & Telefonlar */}
+                              <div className="space-y-1">
+                                {yetkiliKisi && (
+                                  <div className="flex items-center gap-1 text-slate-700 font-medium text-xs">
+                                    <User className="w-3.5 h-3.5 text-slate-500" />
+                                    <span>{yetkiliKisi}</span>
+                                  </div>
+                                )}
+                                
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-x-3.5 gap-y-1 pt-0.5">
+                                  {/* En Az İki Telefon: 1. Telefon */}
+                                  {cepTelefonu && (
+                                    <span className="flex items-center gap-1 font-mono text-emerald-800 text-xs font-semibold">
+                                      <Phone className="w-3 h-3 text-emerald-600" />
+                                      <span className="text-[10px] text-emerald-600 font-sans font-medium">Cep</span>
+                                      {formatPhoneDisplay(cepTelefonu)}
+                                    </span>
+                                  )}
+                                  {/* En Az İki Telefon: 2. Telefon */}
+                                  {(cepTelefonu2 || isTelefonu || evTelefonu) && (
+                                    <span className="flex items-center gap-1 font-mono text-blue-800 text-xs font-semibold">
+                                      <Phone className="w-3 h-3 text-blue-600" />
+                                      <span className="text-[10px] text-blue-600 font-sans font-medium">Cep</span>
+                                      {formatPhoneDisplay(cepTelefonu2 || isTelefonu || evTelefonu)}
+                                    </span>
+                                  )}
                                 </div>
-                              )}
-                              
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-x-3.5 gap-y-1 pt-0.5">
-                                {/* En Az İki Telefon: 1. Telefon */}
-                                {cepTelefonu && (
-                                  <span className="flex items-center gap-1 font-mono text-emerald-800 text-xs font-semibold">
-                                    <Phone className="w-3 h-3 text-emerald-600" />
-                                    <span className="text-[10px] text-emerald-600 font-sans font-medium">Cep</span>
-                                    {formatPhoneDisplay(cepTelefonu)}
-                                  </span>
-                                )}
-                                {/* En Az İki Telefon: 2. Telefon */}
-                                {(cepTelefonu2 || isTelefonu || evTelefonu) && (
-                                  <span className="flex items-center gap-1 font-mono text-blue-800 text-xs font-semibold">
-                                    <Phone className="w-3 h-3 text-blue-600" />
-                                    <span className="text-[10px] text-blue-600 font-sans font-medium">Cep</span>
-                                    {formatPhoneDisplay(cepTelefonu2 || isTelefonu || evTelefonu)}
-                                  </span>
-                                )}
                               </div>
                             </div>
-                          </div>
- 
-                          {/* Sağ Üst: Düzenle Butonu */}
-                          <button
-                            type="button"
-                            onClick={() => setIsEditCariDetailsOpen(!isEditCariDetailsOpen)}
-                            className={`px-2.5 py-1 text-xs rounded-lg border font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-all shrink-0 w-[105px] h-[28px] ${
-                              isEditCariDetailsOpen
-                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                                : 'text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200'
-                            }`}
-                            title="Müşterinin telefon veya adres bilgilerini bu servis için düzenle"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            {isEditCariDetailsOpen ? 'Kapat' : 'Düzenle'}
-                          </button>
-                        </div>
- 
-                        {/* Alt Kısım: Adres Satırı ve Sağda Adres Seç Açılır Kutusu (Aynı Hizada) */}
-                        <div className="text-xs text-slate-600 leading-relaxed font-sans pt-2 border-t border-slate-200/80 font-medium flex items-start justify-between gap-4">
-                          {/* Sol: Adres Metni */}
-                          <div className="flex items-start gap-1 flex-1 min-w-0">
-                            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
-                            <span>{birlesikAdres || 'Adres bilgisi bulunamadı'}</span>
-                          </div>
- 
-                          {/* Sağ: Düzenle Butonu ile Dikey Aynı Hizada Adres Seç Dropdownu */}
-                          {mevcutCariAdresleri.length > 1 && (
-                            <select
-                              value={secilenAdresId}
-                              onChange={e => handleAdresSecimi(e.target.value)}
-                              className="px-2.5 py-1 text-[11px] rounded-lg border border-indigo-200 text-indigo-600 font-semibold cursor-pointer transition-all hover:bg-indigo-50 outline-none w-[105px] h-[28px] bg-white leading-none text-center shrink-0"
+   
+                            {/* Sağ Üst: Düzenle Butonu */}
+                            <button
+                              type="button"
+                              onClick={() => setIsEditCariDetailsOpen(!isEditCariDetailsOpen)}
+                              className={`px-2.5 py-1 text-xs rounded-lg border font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-all shrink-0 w-[105px] h-[28px] ${
+                                isEditCariDetailsOpen
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200'
+                              }`}
+                              title="Müşterinin telefon veya adres bilgilerini bu servis için düzenle"
                             >
-                              <option value="" disabled>Adres Seç</option>
-                              {mevcutCariAdresleri.map(addr => (
-                                <option key={addr.id} value={addr.id}>
-                                  {addr.title}
-                                </option>
-                              ))}
-                            </select>
-                          )}
+                              <Edit3 className="w-3.5 h-3.5" />
+                              {isEditCariDetailsOpen ? 'Kapat' : 'Düzenle'}
+                            </button>
+                          </div>
+   
+                          {/* Alt Kısım: Adres Satırı ve Sağda Adres Seç Açılır Kutusu (Aynı Hizada) */}
+                          <div className="text-xs text-slate-600 leading-relaxed font-sans pt-2 border-t border-slate-200/80 font-medium flex items-start justify-between gap-4">
+                            {/* Sol: Adres Metni */}
+                            <div className="flex items-start gap-1 flex-1 min-w-0">
+                              <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                              <span>{birlesikAdres || 'Adres bilgisi bulunamadı'}</span>
+                            </div>
+   
+                            {/* Sağ: Düzenle Butonu ile Dikey Aynı Hizada Adres Seç Dropdownu */}
+                            {mevcutCariAdresleri.length > 1 && (
+                              <select
+                                value={secilenAdresId}
+                                onChange={e => handleAdresSecimi(e.target.value)}
+                                className="px-2.5 py-1 text-[11px] rounded-lg border border-indigo-200 text-indigo-600 font-semibold cursor-pointer transition-all hover:bg-indigo-50 outline-none w-[105px] h-[28px] bg-white leading-none text-center shrink-0"
+                              >
+                                <option value="" disabled>Adres Seç</option>
+                                {mevcutCariAdresleri.map(addr => (
+                                  <option key={addr.id} value={addr.id}>
+                                    {addr.title}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* EĞER DÜZENLEME BUTONUNA BASILDIYSA: DETAYLI DÜZENLEME FORMU */}
                       {isEditCariDetailsOpen && (
@@ -1663,7 +1859,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                               </label>
                               <input
                                 type="text"
-                                required
                                 placeholder="Örn: Ege Su Ltd. veya Ahmet Yılmaz"
                                 value={cariUnvan}
                                 onChange={e => setCariUnvan(e.target.value)}
@@ -1702,7 +1897,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                               type="tel"
                               inputMode="tel"
                               maxLength={19}
-                              required
                               placeholder="+90 (5XX) XXX XX XX"
                               value={cepTelefonu}
                               onFocus={() => {
@@ -1848,7 +2042,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                             </label>
                             <input
                               type="text"
-                              required
                               value={sokak}
                               onChange={e => {
                                 setSokak(e.target.value);
@@ -2014,7 +2207,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                         <select
                           value={selectedBranchId}
                           onChange={e => setSelectedBranchId(e.target.value)}
-                          required
                           className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none cursor-pointer"
                         >
                           <option value="" disabled>-- Şube Seçiniz --</option>
@@ -2032,7 +2224,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                           </label>
                           <input
                             type="text"
-                            required
                             placeholder="Örn: Ege Su Ltd. veya Ahmet Yılmaz"
                             value={cariUnvan}
                             onChange={e => setCariUnvan(e.target.value)}
@@ -2071,7 +2262,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                           type="tel"
                           inputMode="tel"
                           maxLength={19}
-                          required
                           placeholder="+90 (5XX) XXX XX XX"
                           value={cepTelefonu}
                           onFocus={() => {
@@ -2428,13 +2618,15 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                       </select>
                     ) : (
                       <div className="text-xs text-slate-500 bg-slate-100 p-2.5 rounded-xl text-center italic">
-                        Müşterinin kayıtlı cihazı bulunmuyor. Lütfen sağ üstteki "+ Cihaz Ekle / Yönet" butonu ile yeni cihaz kaydedin.
+                        {selectedCariId 
+                          ? 'Müşterinin kayıtlı cihazı bulunmuyor. Lütfen sağ üstteki "+ Cihaz Ekle / Yönet" butonu ile yeni cihaz kaydedin.'
+                          : 'Cari seçildiğinde kayıtlı cihazlar burada listelenir veya "+ Cihaz Ekle / Yönet" ile yeni cihaz tanımlayabilirsiniz.'}
                       </div>
                     )}
 
-                    {/* Seçili Cihaz Akıllı Bilgi Kartı (İç Kutu Kaldırıldı) */}
+                    {/* Seçili Cihaz Akıllı Bilgi Kartı */}
                     {cihazSecimModu === 'KAYITLI_CIHAZ' && secilenCihazId && (
-                      <div className="flex items-center justify-between gap-3 pt-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 bg-slate-50/90 p-2.5 rounded-xl border border-slate-200/90">
                         <div className="space-y-0.5">
                           <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                             <Cpu className="w-3.5 h-3.5 text-slate-500" />
@@ -2445,9 +2637,31 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                             {seriNo && <span>• SN: <strong className="text-slate-700 font-mono">{seriNo}</strong></span>}
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-[10px] text-slate-500 block">Döngü</span>
-                          <span className="text-xs font-bold text-indigo-700 font-mono">{bakimPeriyoduAy} Aylık</span>
+                        <div className="flex items-center gap-2 shrink-0 bg-white px-2.5 py-1 rounded-lg border border-indigo-100 shadow-2xs">
+                          <div className="text-right">
+                            <label className="text-[9px] text-slate-500 font-bold block">Bakım Periyodu</label>
+                            <div className="flex items-center gap-1">
+                              <select
+                                value={bakimPeriyoduAy}
+                                onChange={e => setBakimPeriyoduAy(Number(e.target.value))}
+                                className="bg-transparent text-indigo-700 font-bold text-xs focus:outline-none cursor-pointer"
+                              >
+                                <option value={1}>1 Aylık Döngü</option>
+                                <option value={2}>2 Aylık Döngü</option>
+                                <option value={3}>3 Aylık Döngü</option>
+                                <option value={4}>4 Aylık Döngü</option>
+                                <option value={5}>5 Aylık Döngü</option>
+                                <option value={6}>6 Aylık Döngü</option>
+                                <option value={7}>7 Aylık Döngü</option>
+                                <option value={8}>8 Aylık Döngü</option>
+                                <option value={9}>9 Aylık Döngü</option>
+                                <option value={10}>10 Aylık Döngü</option>
+                                <option value={12}>12 Aylık (Yıllık)</option>
+                                <option value={18}>18 Aylık Döngü</option>
+                                <option value={24}>24 Aylık (2 Yıl)</option>
+                              </select>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -2618,6 +2832,7 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                         onChange={e => setTalepServisTuru(e.target.value)}
                         className="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:border-amber-500 focus:outline-none cursor-pointer"
                       >
+                        <option value="">Servis Türü Seçiniz...</option>
                         {serviceTypes.map(t => (
                           <option key={t} value={t}>{t}</option>
                         ))}
@@ -2638,7 +2853,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                     </label>
                     <textarea
                       rows={3}
-                      required
                       value={bildirilenAriza}
                       onChange={e => setBildirilenAriza(e.target.value)}
                       placeholder="Müşterinin belirttiği arıza veya talep: Örn: Su tadı acılaştı, atık su kesilmiyor, 6 aylık periyodik filtre değişimi yapılacak..."
@@ -2668,7 +2882,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                       <label className="text-[11px] text-slate-700 font-bold block mb-1">Randevu Tarihi *</label>
                       <input
                         type="date"
-                        required
                         value={randevuTarihi}
                         onChange={e => setRandevuTarihi(e.target.value)}
                         className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none shadow-sm"
@@ -2679,7 +2892,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                       <label className="text-[11px] text-slate-700 font-bold block mb-1">Randevu Saati *</label>
                       <input
                         type="time"
-                        required
                         value={randevuSaati}
                         onChange={e => setRandevuSaati(e.target.value)}
                         className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none shadow-sm"
@@ -2692,7 +2904,6 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                         value={atananTeknisyenId}
                         onChange={e => setAtananTeknisyenId(e.target.value)}
                         className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none cursor-pointer shadow-sm"
-                        required
                       >
                         <option value="">Teknisyen Seçiniz...</option>
                         {teknisyenListesi.map(t => {
@@ -2732,10 +2943,10 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
                     </div>
                     <div>
                       <div className="font-bold text-slate-800">
-                        {talepServisTuru.split('(')[0].trim()} • {randevuTarihi} ({randevuSaati})
+                        {talepServisTuru ? talepServisTuru.split('(')[0].trim() : 'Servis Türü Seçilmedi'} • {randevuTarihi ? `${randevuTarihi} ${randevuSaati ? `(${randevuSaati})` : ''}` : 'Tarih Belirlenmedi'}
                       </div>
                       <div className="text-[10px] text-slate-500 truncate max-w-[280px]">
-                        {cariUnvan ? `${cariUnvan}` : 'Cari Seçilmedi'} — Teknisyen: {getPersonelName(teknisyenListesi.find(t => t.id === atananTeknisyenId) || defaultTeknisyen)}
+                        {cariUnvan ? `${cariUnvan}` : 'Cari Seçilmedi'} — Teknisyen: {atananTeknisyenId ? getPersonelName(teknisyenListesi.find(t => t.id === atananTeknisyenId)) : 'Atanmadı'}
                       </div>
                     </div>
                   </div>
@@ -2757,24 +2968,56 @@ export const YeniServisArizaModal: React.FC<YeniServisArizaModalProps> = ({
             <div className="text-xs text-slate-500 hidden md:block">
               * ile işaretli alanların doldurulması zorunludur.
             </div>
-            <div className="flex flex-col-reverse sm:flex-row items-center gap-3 w-full sm:w-auto">
+            <div className="flex flex-col-reverse sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+              {/* 1. Vazgeç Butonu */}
               <button
                 type="button"
-                onClick={onClose}
-                className="w-full sm:w-auto px-6 py-3 sm:py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onClose();
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
               >
                 Vazgeç
               </button>
+
+              {/* 2. Kaydet / Değişiklikleri Güncelle & Kaydet Butonu */}
               <button
-                type="submit"
-                className={`w-full sm:w-auto px-6 py-3 sm:py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer ${
-                  editingServis
-                    ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
-                    : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500'
-                }`}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handlePerformSave(false);
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                {editingServis ? 'Değişiklikleri Güncelle & Kaydet' : 'Servis Kaydını Oluştur (Sahaya İlet)'}
+                {editingServis ? 'Değişiklikleri Güncelle & Kaydet' : 'Kaydet'}
+              </button>
+
+              {/* 3. İş Emri Gönder Butonu (Düzenleme modunda veya kaydedildikten sonra aktif) */}
+              <button
+                type="button"
+                disabled={!editingServis && !isSaved}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handlePerformSave(true);
+                }}
+                className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                  (editingServis || isSaved)
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200 cursor-pointer animate-in fade-in'
+                    : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60'
+                }`}
+                title={
+                  (editingServis || isSaved)
+                    ? 'İş emrini sahaya ve teknisyene ilet'
+                    : 'Kaydetmeden İş Emri Gönder butonu aktif olmaz. Lütfen önce kaydı tamamlayınız.'
+                }
+              >
+                {(editingServis || isSaved) ? <Send className="w-4 h-4" /> : <Lock className="w-3.5 h-3.5 text-slate-400" />}
+                İş Emri Gönder
               </button>
             </div>
           </div>

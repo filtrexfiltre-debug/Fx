@@ -482,7 +482,6 @@ export const GelirGiderManagement: React.FC = () => {
         field: 'itemCode',
         minWidth: 140,
         width: 145,
-        pinned: 'left',
         cellRenderer: (params: ICellRendererParams<RevenueExpenseItem>) => {
           const item = params.data;
           if (!item) return '-';
@@ -784,8 +783,20 @@ export const GelirGiderManagement: React.FC = () => {
 
   const rowSelection = useMemo<RowSelectionOptions<RevenueExpenseItem>>(
     () => ({
-      mode: 'singleRow',
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
       enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
     }),
     []
   );
@@ -795,7 +806,14 @@ export const GelirGiderManagement: React.FC = () => {
     try {
       const saved = localStorage.getItem(STORAGE_COLUMNS_KEY);
       if (saved) {
-        params.api.applyColumnState({ state: JSON.parse(saved), applyOrder: true });
+        const state = JSON.parse(saved);
+        const cleanState = Array.isArray(state)
+          ? state.map((col: any) => {
+              if (col.colId === 'itemCode') return { ...col, pinned: null };
+              return col;
+            })
+          : state;
+        params.api.applyColumnState({ state: cleanState, applyOrder: true });
       }
     } catch (e) {
       console.warn('Could not restore column state:', e);
@@ -1056,16 +1074,6 @@ export const GelirGiderManagement: React.FC = () => {
             >
               <Plus className="w-3.5 h-3.5" />
               <span>+ Gider Ekle</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-              title="CSV formatında dışa aktar"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">CSV</span>
             </button>
 
             <button

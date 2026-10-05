@@ -226,8 +226,15 @@ export const VirmanTransfer: React.FC = () => {
     try {
       const savedState = localStorage.getItem(STORAGE_GRID_KEY);
       if (savedState) {
+        const state = JSON.parse(savedState);
+        const cleanState = Array.isArray(state)
+          ? state.map((col: any) => {
+              if (col.colId === 'transferNumber') return { ...col, pinned: null };
+              return col;
+            })
+          : state;
         params.api.applyColumnState({
-          state: JSON.parse(savedState),
+          state: cleanState,
           applyOrder: true,
         });
       }
@@ -244,7 +251,6 @@ export const VirmanTransfer: React.FC = () => {
         field: 'transferNumber',
         headerName: 'Fiş No & Tarih',
         width: 170,
-        pinned: 'left',
         cellRenderer: (params: ICellRendererParams<InterBranchTransfer>) => {
           const d = params.data;
           if (!d) return null;
@@ -405,9 +411,20 @@ export const VirmanTransfer: React.FC = () => {
   }), []);
 
   const rowSelection = useMemo<RowSelectionOptions>(() => ({
-    mode: 'singleRow',
-    checkboxes: false,
+    mode: 'multiRow',
+    checkboxes: true,
+    headerCheckbox: true,
     enableClickSelection: true,
+    selectAll: 'all',
+    selectionColumnDef: {
+      pinned: 'left',
+      width: 48,
+      minWidth: 48,
+      maxWidth: 48,
+      resizable: false,
+      sortable: false,
+      suppressColumnsToolPanel: true,
+    },
   }), []);
 
   // Dışa Aktarma Fonksiyonları (Excel & PDF)
@@ -753,16 +770,6 @@ export const VirmanTransfer: React.FC = () => {
 
           {/* Sağ: Dışa Aktarma & Kolon Özelleştirme */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 rounded-md transition-colors cursor-pointer"
-              title="CSV formatında dışa aktar"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>CSV</span>
-            </button>
-
             <button
               type="button"
               onClick={handleExportPdf}

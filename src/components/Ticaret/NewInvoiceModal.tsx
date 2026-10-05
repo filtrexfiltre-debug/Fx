@@ -239,7 +239,10 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
       }
     }
 
-    const price = prod.salePriceExclVat || 650;
+    const price = initialDirection === 'SATIS'
+      ? (prod.salePriceExclVat ?? prod.salePrice ?? (prod as any).sellPrice ?? 0)
+      : (prod.purchasePrice ?? prod.netPurchaseCost ?? (prod as any).buyPrice ?? 0);
+    const vatRate = prod.vatRatePercent !== undefined ? prod.vatRatePercent : (prod.vatRate !== undefined ? prod.vatRate : 20);
 
     setItems((prev) => {
       const next = [...prev];
@@ -250,7 +253,7 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
         productName: prod.name || '',
         unitPrice: price,
         unit: prod.unitType || 'Adet',
-        vatRate: prod.vatRatePercent || 20,
+        vatRate: vatRate,
       };
 
       // Recalculate totals for the new product

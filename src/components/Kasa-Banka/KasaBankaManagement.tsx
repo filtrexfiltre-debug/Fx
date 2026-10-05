@@ -10,6 +10,7 @@ import {
   ValidationModule,
   GridReadyEvent,
   GridApi,
+  RowSelectionOptions,
 } from 'ag-grid-community';
 import {
   Landmark,
@@ -916,7 +917,7 @@ export const KasaBankaManagement: React.FC<KasaBankaManagementProps> = ({ onNavi
     },
     {
       field: 'contactTitle',
-      headerName: 'Cari / Karşı Taraf',
+      headerName: 'Cari',
       flex: 1.2,
       minWidth: 150,
       cellRenderer: (params: ICellRendererParams<PaymentMovement>) => {
@@ -1020,6 +1021,46 @@ export const KasaBankaManagement: React.FC<KasaBankaManagementProps> = ({ onNavi
       },
     },
   ], [isGlobalUser, handleApproveMovement, handleRejectMovement]);
+
+  const accountRowSelection = useMemo<RowSelectionOptions<CashBank>>(
+    () => ({
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
+      enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
+    }),
+    []
+  );
+
+  const movementRowSelection = useMemo<RowSelectionOptions<PaymentMovement>>(
+    () => ({
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
+      enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
+    }),
+    []
+  );
 
   // AG Grid Hazır ve State Yönetimi
   const onGridReady = React.useCallback((params: GridReadyEvent<CashBank>) => {
@@ -1136,16 +1177,6 @@ export const KasaBankaManagement: React.FC<KasaBankaManagementProps> = ({ onNavi
                 <span>Şubeler Arası Virman</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
-              title="CSV indir"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">CSV</span>
-            </button>
 
             <button
               type="button"
@@ -1683,10 +1714,7 @@ export const KasaBankaManagement: React.FC<KasaBankaManagementProps> = ({ onNavi
                       pagination={true}
                       paginationPageSize={10}
                       paginationPageSizeSelector={[10, 25, 50]}
-                      rowSelection={{
-                        mode: 'singleRow',
-                        checkboxes: false,
-                      }}
+                      rowSelection={accountRowSelection}
                       onGridReady={onGridReady}
                       onColumnMoved={saveGridState}
                       onColumnVisible={saveGridState}
@@ -1909,10 +1937,7 @@ export const KasaBankaManagement: React.FC<KasaBankaManagementProps> = ({ onNavi
                     pagination={true}
                     paginationPageSize={15}
                     paginationPageSizeSelector={[15, 30, 50, 100]}
-                    rowSelection={{
-                      mode: 'singleRow',
-                      checkboxes: false,
-                    }}
+                    rowSelection={movementRowSelection}
                     onGridReady={onMovementsGridReady}
                     onColumnMoved={saveMovementsGridState}
                     onColumnVisible={saveMovementsGridState}

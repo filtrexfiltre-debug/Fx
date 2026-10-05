@@ -68,9 +68,11 @@ export const geoService = {
       } else {
         // 2. Büyük/küçük harf veya Türkçe karakter toleranslı eşleşme (örn: Bahşili / Bahşılı)
         const targetClean = districtName.trim().toLocaleLowerCase('tr');
-        const foundKey = Object.keys(cityDistricts).find(
-          k => k.trim().toLocaleLowerCase('tr') === targetClean
-        );
+        const targetNormalized = targetClean.replace(/i/g, 'ı');
+        const foundKey = Object.keys(cityDistricts).find(k => {
+          const kClean = k.trim().toLocaleLowerCase('tr');
+          return kClean === targetClean || kClean.replace(/i/g, 'ı') === targetNormalized;
+        });
         if (foundKey && cityDistricts[foundKey]) {
           list = cityDistricts[foundKey];
         }
@@ -86,26 +88,31 @@ export const geoService = {
   },
 
   /**
-   * Veritabanı Coğrafi Bütünlük ve Sayım Doğrulaması
+   * Veritabanı Coğrafi Bütünlük ve Sayım Doğrulaması (Kanonik 973 İlçe & 32.362 Mahalle)
    */
   getDatabaseStats(): GeoDatabaseStats {
     let totalHoods = 0;
     let totalDists = 0;
 
-    for (const c of Object.keys(rawNeighborhoods)) {
-      const dists = rawNeighborhoods[c];
-      for (const d of Object.keys(dists)) {
+    for (let cityId = 1; cityId <= 81; cityId++) {
+      const canonicalDistricts = TURKEY_DISTRICTS[cityId] || [];
+      const cityDistricts = rawNeighborhoods[String(cityId)] || {};
+
+      for (const districtName of canonicalDistricts) {
         totalDists++;
-        totalHoods += dists[d].length;
+        const hoods = cityDistricts[districtName] || [];
+        totalHoods += hoods.length;
       }
     }
+
+    const canonicalTarget = 32362;
 
     return {
       citiesCount: 81,
       districtsCount: totalDists,
       neighborhoodsCount: totalHoods,
-      targetCount: 32311,
-      isComplete: totalHoods >= 32311,
+      targetCount: canonicalTarget,
+      isComplete: totalHoods >= canonicalTarget,
       standard: 'T.C. İçişleri Bakanlığı Mülki İdare Envanteri & TÜİK ADNKS',
     };
   }

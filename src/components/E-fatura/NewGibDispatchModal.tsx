@@ -122,7 +122,7 @@ export const NewGibDispatchModal: React.FC<NewGibDispatchModalProps> = ({
       driverIdNumber,
       status: 'SENT_TO_GIB',
       gibStatusCode: 1200,
-      gibStatusDescription: 'GİB e-İrsaliye Başarıyla İletildi (Plaka ve Şoför Tescil Edildi)',
+      gibStatusDescription: 'UBL-TR 1.2 e-İrsaliye Şeması Oluşturuldu (Test Entegratör 1200 - Simülasyon)',
       items,
       notes: 'Fiili sevkiyat başlamıştır.',
     });

@@ -125,7 +125,6 @@ export const VergiDagitim: React.FC = () => {
         field: 'branchName',
         headerName: 'Şube Adı & İl',
         width: 240,
-        pinned: 'left',
         cellRenderer: (params: ICellRendererParams) => {
           const d = params.data;
           if (!d) return null;
@@ -229,9 +228,20 @@ export const VergiDagitim: React.FC = () => {
   }), []);
 
   const rowSelection = useMemo<RowSelectionOptions>(() => ({
-    mode: 'singleRow',
-    checkboxes: false,
+    mode: 'multiRow',
+    checkboxes: true,
+    headerCheckbox: true,
     enableClickSelection: true,
+    selectAll: 'all',
+    selectionColumnDef: {
+      pinned: 'left',
+      width: 48,
+      minWidth: 48,
+      maxWidth: 48,
+      resizable: false,
+      sortable: false,
+      suppressColumnsToolPanel: true,
+    },
   }), []);
 
   // Excel & PDF Dışa Aktarma
@@ -408,16 +418,6 @@ export const VergiDagitim: React.FC = () => {
             >
               <FileCheck className="w-3.5 h-3.5" />
               <span>Dağıtımı Kesinleştir</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 rounded-md transition-colors cursor-pointer"
-              title="CSV formatında dışa aktar"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>CSV</span>
             </button>
 
             <button

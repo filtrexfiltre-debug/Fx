@@ -383,14 +383,6 @@ export const DepolarTablosu: React.FC<DepolarTablosuProps> = ({ onRefreshStats }
 
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={exportToExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>CSV</span>
-            </button>
-
-            <button
               onClick={exportToPdf}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
             >
@@ -415,6 +407,10 @@ export const DepolarTablosu: React.FC<DepolarTablosuProps> = ({ onRefreshStats }
           rowData={filteredWarehouses}
           pagination={true}
           paginationPageSize={10}
+          rowSelection={{
+            mode: 'multiRow',
+            checkboxes: true,
+          }}
         />
       </div>
 

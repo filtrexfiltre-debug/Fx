@@ -157,9 +157,9 @@ export const EfaturaGibManagement: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-bold tracking-tight">E-Fatura & GİB Merkezi</h1>
-                <span className="flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  GİB Portalı Çevrimiçi (200 OK)
+                <span className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  GİB Entegratör Simülatörü (UBL-TR 1.2 Test Modu)
                 </span>
               </div>
             </div>
@@ -186,6 +186,14 @@ export const EfaturaGibManagement: React.FC = () => {
               </button>
             )}
           </div>
+        </div>
+
+        {/* ENTEGRASYON MODU AÇIKLAMA BANDI */}
+        <div className="mt-3.5 pt-3.5 border-t border-stone-800/80 flex items-start gap-2.5 text-xs text-stone-300">
+          <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <p className="leading-relaxed">
+            <strong className="text-amber-300">GİB & E-Fatura Entegrasyon Bilgisi:</strong> Sistem şu anda <span className="font-semibold text-white underline decoration-amber-400/60">UBL-TR 1.2 XML Şema Simülasyonu</span> modundadır. Resmi GİB Özel Entegratör Canlı API anahtarı (Sovos/QNB/Logo/FitBull) bağlı olmadığı sürece belgeler GİB UBL-TR 1.2 standartlarında simüle edilerek test ve ön-izleme havuzunda tescil edilir.
+          </p>
         </div>
 
         {/* ALARM BANDI (EĞER 7 GÜNLÜK BEKLEYEN TİCARİ FATURA VARSA) */}

@@ -90,8 +90,12 @@ export function LoginScreen({
                 <div className="flex items-center gap-2.5">
                   <span className="text-lg">👑</span>
                   <div>
-                    <div className="text-xs font-bold text-indigo-950">Ahmet Yılmaz (Patron / Genel Müdür)</div>
-                    <div className="text-[11px] text-stone-500 font-mono">patron@enterprise.com &bull; Şifre: 123456</div>
+                    <div className="text-xs font-bold text-indigo-950">
+                      Ahmet Yılmaz (Patron / Genel Müdür)
+                    </div>
+                    <div className="text-[11px] text-stone-500 font-mono">
+                      patron@enterprise.com &bull; Şifre: 123456
+                    </div>
                   </div>
                 </div>
                 <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md shrink-0">
@@ -107,8 +111,12 @@ export function LoginScreen({
                 <div className="flex items-center gap-2.5">
                   <span className="text-lg">🏢</span>
                   <div>
-                    <div className="text-xs font-bold text-stone-900">Burak Demir (Kadıköy Şube Müdürü)</div>
-                    <div className="text-[11px] text-stone-500 font-mono">kadikoy@enterprise.com &bull; Şifre: 123456</div>
+                    <div className="text-xs font-bold text-stone-900">
+                      Burak Demir (Kadıköy Şube Müdürü)
+                    </div>
+                    <div className="text-[11px] text-stone-500 font-mono">
+                      kadikoy@enterprise.com &bull; Şifre: 123456
+                    </div>
                   </div>
                 </div>
                 <span className="text-[10px] font-bold bg-stone-200 text-stone-700 px-2 py-0.5 rounded-md shrink-0">
@@ -124,8 +132,12 @@ export function LoginScreen({
                 <div className="flex items-center gap-2.5">
                   <span className="text-lg">🏛️</span>
                   <div>
-                    <div className="text-xs font-bold text-stone-900">Selin Kaya (Merkez Sorumlusu)</div>
-                    <div className="text-[11px] text-stone-500 font-mono">merkez@enterprise.com &bull; Şifre: 123456</div>
+                    <div className="text-xs font-bold text-stone-900">
+                      Selin Kaya (Merkez Sorumlusu)
+                    </div>
+                    <div className="text-[11px] text-stone-500 font-mono">
+                      merkez@enterprise.com &bull; Şifre: 123456
+                    </div>
                   </div>
                 </div>
                 <span className="text-[10px] font-bold bg-stone-200 text-stone-700 px-2 py-0.5 rounded-md shrink-0">

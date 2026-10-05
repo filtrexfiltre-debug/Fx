@@ -27,11 +27,13 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Fx.Domain.Common;
 using Fx.Domain.Entities;
 using Fx.Infrastructure.Services;
+using Fx.Application.Common.Interfaces;
+using Microsoft.EntityFrameworkCore.Storage;
 
 public class ApplicationDbContext(
     DbContextOptions<ApplicationDbContext> options,
     ICurrentUserService currentUserService
-) : DbContext(options)
+) : DbContext(options), IApplicationDbContext
 {
     private readonly ICurrentUserService _currentUserService = currentUserService;
 
@@ -190,5 +192,10 @@ public class ApplicationDbContext(
         }
 
         return base.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        return Database.BeginTransactionAsync(cancellationToken);
     }
 }

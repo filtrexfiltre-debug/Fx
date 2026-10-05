@@ -372,16 +372,6 @@ export const SubeKarZararDetayModal: React.FC<SubeKarZararDetayModalProps> = ({
 
             <button
               type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-              title="CSV raporu indir"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden md:inline">CSV</span>
-            </button>
-
-            <button
-              type="button"
               onClick={handleExportPDF}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
               title="PDF Gelir Tablosu Oluştur"

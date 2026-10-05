@@ -5,12 +5,9 @@ import { AG_GRID_LOCALE_TR } from '../../lib/agGridLocaleTR';
 import {
   ColDef,
   ICellRendererParams,
-  
-  
-  
-  
   GridReadyEvent,
   GridApi,
+  RowSelectionOptions,
 } from 'ag-grid-community';
 import {
   Search,
@@ -48,6 +45,13 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
   const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState<string>('ALL');
   const [onlyCriticalFilter, setOnlyCriticalFilter] = useState<boolean>(false);
   const [gridApi, setGridApi] = useState<GridApi<WarehouseStock> | null>(null);
+  const [gridColumnsRevision, setGridColumnsRevision] = useState<number>(0);
+
+  const defaultColDef = useMemo<ColDef>(() => ({
+    sortable: true,
+    filter: true,
+    resizable: true,
+  }), []);
 
   // Yan Panel Kolon Özelleştirme State (Cari Hesaplar Standardı)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
@@ -216,6 +220,26 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
     },
   ], []);
 
+  const rowSelection = useMemo<RowSelectionOptions<WarehouseStock>>(
+    () => ({
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
+      enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
+    }),
+    []
+  );
+
   const filteredStocks = useMemo(() => {
     return stocks.filter(s => {
       const matchWh = selectedWarehouseFilter === 'ALL' || s.warehouseId === selectedWarehouseFilter;
@@ -306,6 +330,7 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
     try {
       const state = gridApi.getColumnState();
       localStorage.setItem(STORAGE_GRID_KEY, JSON.stringify(state));
+      setGridColumnsRevision(prev => prev + 1);
     } catch (e) {
       console.error(e);
     }
@@ -423,14 +448,6 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
             />
 
             <button
-              onClick={exportToExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-600" />
-              <span>CSV</span>
-            </button>
-
-            <button
               onClick={exportToPdf}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-md transition-colors cursor-pointer"
             >
@@ -451,8 +468,10 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
           <div style={{ height: '520px', width: '100%' }}>
             <AgGridReact<WarehouseStock> theme={appTheme}
               localeText={AG_GRID_LOCALE_TR}
+              loading={loading}
               rowData={filteredStocks}
               columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
               pagination={true}
               paginationPageSize={10}
               paginationPageSizeSelector={[10, 25, 50]}
@@ -465,10 +484,8 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
               headerHeight={42}
               animateRows={true}
               enableCellTextSelection={true}
-              rowSelection={{
-                mode: 'singleRow',
-                checkboxes: false,
-              }}
+              rowSelection={rowSelection}
+              quickFilterText={quickFilterText}
             />
           </div>
         </div>
@@ -481,6 +498,7 @@ export const DepoStokDagitimiTablosu: React.FC<DepoStokDagitimiTablosuProps> = (
             onClose={() => setIsSidebarOpen(false)}
             primaryColIds={['warehouseName', 'productSku', 'productName', 'criticalStockLevel', 'totalQuantity', 'totalCostValue', 'totalCurrentValue']}
             sidebarRef={sidebarRef}
+            columnsRevision={gridColumnsRevision}
           />
         )}
       </div>

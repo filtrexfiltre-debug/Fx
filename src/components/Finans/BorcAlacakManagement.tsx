@@ -324,7 +324,6 @@ export const BorcAlacakManagement: React.FC<BorcAlacakManagementProps> = ({
         field: 'itemCode',
         headerName: 'Kayıt Kodu',
         width: 140,
-        pinned: 'left',
         cellRenderer: (params: ICellRendererParams) => {
           if (!params.data) return null;
           const isAlc = params.data.type === 'ALACAK';
@@ -609,9 +608,20 @@ export const BorcAlacakManagement: React.FC<BorcAlacakManagementProps> = ({
   }, [todayStr]);
 
   const rowSelection = useMemo<RowSelectionOptions<DebtCreditItem>>(() => ({
-    mode: 'singleRow',
-    checkboxes: false,
+    mode: 'multiRow',
+    checkboxes: true,
+    headerCheckbox: true,
     enableClickSelection: true,
+    selectAll: 'all',
+    selectionColumnDef: {
+      pinned: 'left',
+      width: 48,
+      minWidth: 48,
+      maxWidth: 48,
+      resizable: false,
+      sortable: false,
+      suppressColumnsToolPanel: true,
+    },
   }), []);
 
   const onGridReady = React.useCallback((params: GridReadyEvent) => {
@@ -762,15 +772,6 @@ export const BorcAlacakManagement: React.FC<BorcAlacakManagementProps> = ({
             </button>
 
             <div className="h-6 w-px bg-stone-200 mx-1 hidden sm:block" />
-
-            <button
-              onClick={exportToExcel}
-              className="flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg border border-stone-200 transition-colors"
-              title="CSV indir"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-              <span className="hidden sm:inline">CSV</span>
-            </button>
 
             <button
               onClick={exportToPDF}

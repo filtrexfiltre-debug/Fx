@@ -1003,7 +1003,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 2 AND name = 'Sincik' LIMIT 1), 'Fatih Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 2 AND name = 'Sincik' LIMIT 1), 'Karaman Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 2 AND name = 'Sincik' LIMIT 1), 'Mahmutoğlu Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 2 AND name = 'Sincik' LIMIT 1), 'Onur Mah.' );
+( (SELECT id FROM districts WHERE city_id = 2 AND name = 'Sincik' LIMIT 1), 'Onur Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 2 AND name = 'Sincik' LIMIT 1), 'Zeynel Aslan Mah.' ),
@@ -2005,7 +2007,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Çankaya' LIMIT 1), 'Tınaztepe Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Çankaya' LIMIT 1), 'Akarlar Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Çankaya' LIMIT 1), 'Aşağı İmrahor Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Çankaya' LIMIT 1), 'Çavuşlu Mah.' );
+( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Çankaya' LIMIT 1), 'Çavuşlu Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Çankaya' LIMIT 1), 'Evciler Mah.' ),
@@ -3007,7 +3011,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Şereflikoçhisar' LIMIT 1), 'Çatçat Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Şereflikoçhisar' LIMIT 1), 'Çavuşköy Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Şereflikoçhisar' LIMIT 1), 'Çayırönü Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Şereflikoçhisar' LIMIT 1), 'Deliller Mah.' );
+( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Şereflikoçhisar' LIMIT 1), 'Deliller Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 6 AND name = 'Şereflikoçhisar' LIMIT 1), 'Devekovan Mah.' ),
@@ -4009,7 +4015,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 7 AND name = 'Serik' LIMIT 1), 'Kayaburnu Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 7 AND name = 'Serik' LIMIT 1), 'Kırbaş Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 7 AND name = 'Serik' LIMIT 1), 'Kozağacı Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 7 AND name = 'Serik' LIMIT 1), 'Kozan Mah.' );
+( (SELECT id FROM districts WHERE city_id = 7 AND name = 'Serik' LIMIT 1), 'Kozan Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 7 AND name = 'Serik' LIMIT 1), 'Kökez Mah.' ),
@@ -5011,7 +5019,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 10 AND name = 'Bigadiç' LIMIT 1), 'Çeribaşı Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 10 AND name = 'Bigadiç' LIMIT 1), 'Çıtak Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 10 AND name = 'Bigadiç' LIMIT 1), 'Davutça Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 10 AND name = 'Bigadiç' LIMIT 1), 'Davutlar Mah.' );
+( (SELECT id FROM districts WHERE city_id = 10 AND name = 'Bigadiç' LIMIT 1), 'Davutlar Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 10 AND name = 'Bigadiç' LIMIT 1), 'Dedeçınar Mah.' ),
@@ -6013,7 +6023,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 12 AND name = 'Yayladere' LIMIT 1), 'Yolgüden Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 12 AND name = 'Yedisu' LIMIT 1), 'Döşengi Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 12 AND name = 'Yedisu' LIMIT 1), 'Kabaoluk Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 12 AND name = 'Yedisu' LIMIT 1), 'Koşan Mah.' );
+( (SELECT id FROM districts WHERE city_id = 12 AND name = 'Yedisu' LIMIT 1), 'Koşan Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 12 AND name = 'Yedisu' LIMIT 1), 'Merkez Mah.' ),
@@ -7015,7 +7027,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 16 AND name = 'Nilüfer' LIMIT 1), 'Çalı Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 16 AND name = 'Nilüfer' LIMIT 1), '29 Ekim Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 16 AND name = 'Nilüfer' LIMIT 1), 'Ertuğrul Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 16 AND name = 'Nilüfer' LIMIT 1), 'Özlüce Mah.' );
+( (SELECT id FROM districts WHERE city_id = 16 AND name = 'Nilüfer' LIMIT 1), 'Özlüce Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 16 AND name = 'Nilüfer' LIMIT 1), 'Yüzüncüyıl Mah.' ),
@@ -8017,7 +8031,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 20 AND name = 'Çivril' LIMIT 1), 'Belence Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 20 AND name = 'Çivril' LIMIT 1), 'Beydilli Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 20 AND name = 'Çivril' LIMIT 1), 'Beyköy Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 20 AND name = 'Çivril' LIMIT 1), 'Bozdağ Mah.' );
+( (SELECT id FROM districts WHERE city_id = 20 AND name = 'Çivril' LIMIT 1), 'Bozdağ Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 20 AND name = 'Çivril' LIMIT 1), 'Bucak Mah.' ),
@@ -9019,7 +9035,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 21 AND name = 'Kayapınar' LIMIT 1), 'Huzurevleri Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 21 AND name = 'Kayapınar' LIMIT 1), 'Kaldırım Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 21 AND name = 'Kayapınar' LIMIT 1), 'Karayakup Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 21 AND name = 'Kayapınar' LIMIT 1), 'Keklik Mah.' );
+( (SELECT id FROM districts WHERE city_id = 21 AND name = 'Kayapınar' LIMIT 1), 'Keklik Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 21 AND name = 'Kayapınar' LIMIT 1), 'Kırkpınar Mah.' ),
@@ -10021,7 +10039,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 25 AND name = 'Çat' LIMIT 1), 'Tuzlataşı Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 25 AND name = 'Çat' LIMIT 1), 'Tuzluca Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 25 AND name = 'Çat' LIMIT 1), 'Yarmak Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 25 AND name = 'Çat' LIMIT 1), 'Yavi Mah.' );
+( (SELECT id FROM districts WHERE city_id = 25 AND name = 'Çat' LIMIT 1), 'Yavi Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 25 AND name = 'Çat' LIMIT 1), 'Yaylasuyu Mah.' ),
@@ -11023,7 +11043,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 26 AND name = 'Alpu' LIMIT 1), 'Ağaçhisar Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 26 AND name = 'Alpu' LIMIT 1), 'Aktepe Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 26 AND name = 'Alpu' LIMIT 1), 'Alapınar Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 26 AND name = 'Alpu' LIMIT 1), 'Arıkaya Mah.' );
+( (SELECT id FROM districts WHERE city_id = 26 AND name = 'Alpu' LIMIT 1), 'Arıkaya Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 26 AND name = 'Alpu' LIMIT 1), 'Bahçecik Mah.' ),
@@ -12025,7 +12047,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 27 AND name = 'Şahinbey' LIMIT 1), 'Bağlarbaşı Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 27 AND name = 'Şahinbey' LIMIT 1), 'Beştepe Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 27 AND name = 'Şahinbey' LIMIT 1), 'Bülbülzade Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 27 AND name = 'Şahinbey' LIMIT 1), 'Ertuğrulgazi Mah.' );
+( (SELECT id FROM districts WHERE city_id = 27 AND name = 'Şahinbey' LIMIT 1), 'Ertuğrulgazi Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 27 AND name = 'Şahinbey' LIMIT 1), 'Geylani Mah.' ),
@@ -13027,7 +13051,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 31 AND name = 'İskenderun' LIMIT 1), 'Mustafa Kemal Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 31 AND name = 'İskenderun' LIMIT 1), 'Numune Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 31 AND name = 'İskenderun' LIMIT 1), 'Pınarbaşı Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 31 AND name = 'İskenderun' LIMIT 1), 'Çay Mah.' );
+( (SELECT id FROM districts WHERE city_id = 31 AND name = 'İskenderun' LIMIT 1), 'Çay Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 31 AND name = 'İskenderun' LIMIT 1), 'Dumlupınar Mah.' ),
@@ -14029,7 +14055,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 33 AND name = 'Silifke' LIMIT 1), 'Yenibahçe Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 33 AND name = 'Silifke' LIMIT 1), 'Yenisu Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 33 AND name = 'Silifke' LIMIT 1), 'Akdere Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 33 AND name = 'Silifke' LIMIT 1), 'Taşucu Mah.' );
+( (SELECT id FROM districts WHERE city_id = 33 AND name = 'Silifke' LIMIT 1), 'Taşucu Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 33 AND name = 'Silifke' LIMIT 1), 'Yeşilovacık Mah.' ),
@@ -15031,7 +15059,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 34 AND name = 'Silivri' LIMIT 1), 'Beyciler Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 34 AND name = 'Silivri' LIMIT 1), 'Büyük Çavuşlu Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 34 AND name = 'Silivri' LIMIT 1), 'Büyük Sinekli Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 34 AND name = 'Silivri' LIMIT 1), 'Çayırdere Mah.' );
+( (SELECT id FROM districts WHERE city_id = 34 AND name = 'Silivri' LIMIT 1), 'Çayırdere Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 34 AND name = 'Silivri' LIMIT 1), 'Danamandıra Mah.' ),
@@ -16033,7 +16063,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 35 AND name = 'Kiraz' LIMIT 1), 'Umurcalı Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 35 AND name = 'Kiraz' LIMIT 1), 'Umurlu Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 35 AND name = 'Kiraz' LIMIT 1), 'Uzunköy Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 35 AND name = 'Kiraz' LIMIT 1), 'Veliler Mah.' );
+( (SELECT id FROM districts WHERE city_id = 35 AND name = 'Kiraz' LIMIT 1), 'Veliler Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 35 AND name = 'Kiraz' LIMIT 1), 'Yağlar Mah.' ),
@@ -17035,7 +17067,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 38 AND name = 'Kocasinan' LIMIT 1), 'Boğazköprü Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 38 AND name = 'Kocasinan' LIMIT 1), 'Düver Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 38 AND name = 'Kocasinan' LIMIT 1), 'Ebiç Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 38 AND name = 'Kocasinan' LIMIT 1), 'Elmalı Mah.' );
+( (SELECT id FROM districts WHERE city_id = 38 AND name = 'Kocasinan' LIMIT 1), 'Elmalı Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 38 AND name = 'Kocasinan' LIMIT 1), 'Eskiömerler Mah.' ),
@@ -18037,7 +18071,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 41 AND name = 'Kandıra' LIMIT 1), 'Antaplı Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 41 AND name = 'Kandıra' LIMIT 1), 'Avdan Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 41 AND name = 'Kandıra' LIMIT 1), 'Aydınlık Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 41 AND name = 'Kandıra' LIMIT 1), 'Babaköy Mah.' );
+( (SELECT id FROM districts WHERE city_id = 41 AND name = 'Kandıra' LIMIT 1), 'Babaköy Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 41 AND name = 'Kandıra' LIMIT 1), 'Babalı Mah.' ),
@@ -19039,7 +19075,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 42 AND name = 'Kulu' LIMIT 1), 'Kemaliye Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 42 AND name = 'Kulu' LIMIT 1), 'Yeni Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 42 AND name = 'Kulu' LIMIT 1), 'Acıkuyu Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 42 AND name = 'Kulu' LIMIT 1), 'Altılar Mah.' );
+( (SELECT id FROM districts WHERE city_id = 42 AND name = 'Kulu' LIMIT 1), 'Altılar Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 42 AND name = 'Kulu' LIMIT 1), 'Arşıncı Mah.' ),
@@ -20041,7 +20079,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 44 AND name = 'Hekimhan' LIMIT 1), 'Çulhalı Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 44 AND name = 'Hekimhan' LIMIT 1), 'Davulgu Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 44 AND name = 'Hekimhan' LIMIT 1), 'Delihasanyurdu Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 44 AND name = 'Hekimhan' LIMIT 1), 'Dereköy Mah.' );
+( (SELECT id FROM districts WHERE city_id = 44 AND name = 'Hekimhan' LIMIT 1), 'Dereköy Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 44 AND name = 'Hekimhan' LIMIT 1), 'Deveci Mah.' ),
@@ -21043,7 +21083,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 45 AND name = 'Saruhanlı' LIMIT 1), 'Nuriye Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 45 AND name = 'Saruhanlı' LIMIT 1), 'Paşaköy Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 45 AND name = 'Saruhanlı' LIMIT 1), 'Adiloba Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 45 AND name = 'Saruhanlı' LIMIT 1), 'Apak Mah.' );
+( (SELECT id FROM districts WHERE city_id = 45 AND name = 'Saruhanlı' LIMIT 1), 'Apak Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 45 AND name = 'Saruhanlı' LIMIT 1), 'Atatürk Mah.' ),
@@ -22045,7 +22087,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 46 AND name = 'Pazarcık' LIMIT 1), 'Ganidağıketiler Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 46 AND name = 'Pazarcık' LIMIT 1), 'Göçer Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 46 AND name = 'Pazarcık' LIMIT 1), 'Göynük Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 46 AND name = 'Pazarcık' LIMIT 1), 'Hanobası Mah.' );
+( (SELECT id FROM districts WHERE city_id = 46 AND name = 'Pazarcık' LIMIT 1), 'Hanobası Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 46 AND name = 'Pazarcık' LIMIT 1), 'Harmancık Mah.' ),
@@ -23047,7 +23091,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 48 AND name = 'Marmaris' LIMIT 1), 'Taşlıca Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 48 AND name = 'Marmaris' LIMIT 1), 'Tepe Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 48 AND name = 'Marmaris' LIMIT 1), 'Turgut Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 48 AND name = 'Marmaris' LIMIT 1), 'Turunç Mah.' );
+( (SELECT id FROM districts WHERE city_id = 48 AND name = 'Marmaris' LIMIT 1), 'Turunç Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 48 AND name = 'Marmaris' LIMIT 1), 'Yeşilbelde Mah.' ),
@@ -24049,7 +24095,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 52 AND name = 'Fatsa' LIMIT 1), 'Bucaklı Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 52 AND name = 'Fatsa' LIMIT 1), 'Buhari Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 52 AND name = 'Fatsa' LIMIT 1), 'Bülbül Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 52 AND name = 'Fatsa' LIMIT 1), 'Büyükkoç Mah.' );
+( (SELECT id FROM districts WHERE city_id = 52 AND name = 'Fatsa' LIMIT 1), 'Büyükkoç Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 52 AND name = 'Fatsa' LIMIT 1), 'Çömlekli Mah.' ),
@@ -25051,7 +25099,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 54 AND name = 'Geyve' LIMIT 1), 'Çukurköy Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 54 AND name = 'Geyve' LIMIT 1), 'Demirler Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 54 AND name = 'Geyve' LIMIT 1), 'Dereköy Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 54 AND name = 'Geyve' LIMIT 1), 'Doğancıl Mah.' );
+( (SELECT id FROM districts WHERE city_id = 54 AND name = 'Geyve' LIMIT 1), 'Doğancıl Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 54 AND name = 'Geyve' LIMIT 1), 'Doğançay Mah.' ),
@@ -26053,7 +26103,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 55 AND name = 'Havza' LIMIT 1), 'Çamyatağı Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 55 AND name = 'Havza' LIMIT 1), 'Çay Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 55 AND name = 'Havza' LIMIT 1), 'Çayırözü Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 55 AND name = 'Havza' LIMIT 1), 'Çelikalan Mah.' );
+( (SELECT id FROM districts WHERE city_id = 55 AND name = 'Havza' LIMIT 1), 'Çelikalan Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 55 AND name = 'Havza' LIMIT 1), 'Çeltek Mah.' ),
@@ -27055,7 +27107,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 58 AND name = 'Şarkışla' LIMIT 1), 'Damlaca Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 58 AND name = 'Şarkışla' LIMIT 1), 'Esentepe Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 58 AND name = 'Şarkışla' LIMIT 1), 'Gültekin Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 58 AND name = 'Şarkışla' LIMIT 1), 'İstiklal Mah.' );
+( (SELECT id FROM districts WHERE city_id = 58 AND name = 'Şarkışla' LIMIT 1), 'İstiklal Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 58 AND name = 'Şarkışla' LIMIT 1), 'Kale Mah.' ),
@@ -28057,7 +28111,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 61 AND name = 'Dernekpazarı' LIMIT 1), 'Yenicami Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 61 AND name = 'Dernekpazarı' LIMIT 1), 'Yenice Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 61 AND name = 'Dernekpazarı' LIMIT 1), 'Zincirlitaş Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 61 AND name = 'Düzköy' LIMIT 1), 'Alazlı Mah.' );
+( (SELECT id FROM districts WHERE city_id = 61 AND name = 'Düzköy' LIMIT 1), 'Alazlı Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 61 AND name = 'Düzköy' LIMIT 1), 'Aykut Mah.' ),
@@ -29059,7 +29115,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 63 AND name = 'Halfeti' LIMIT 1), 'Altınova Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 63 AND name = 'Halfeti' LIMIT 1), 'Argaç Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 63 AND name = 'Halfeti' LIMIT 1), 'Argıl Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 63 AND name = 'Halfeti' LIMIT 1), 'Aşağı Göklü Mah.' );
+( (SELECT id FROM districts WHERE city_id = 63 AND name = 'Halfeti' LIMIT 1), 'Aşağı Göklü Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 63 AND name = 'Halfeti' LIMIT 1), 'Balaban Mah.' ),
@@ -30061,7 +30119,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 64 AND name = 'Sivaslı' LIMIT 1), 'Evrenli Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 64 AND name = 'Sivaslı' LIMIT 1), 'Gölbahçe Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 64 AND name = 'Sivaslı' LIMIT 1), 'Konak Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 64 AND name = 'Sivaslı' LIMIT 1), 'Atatürk Mah. (Tatar Beldesi)' );
+( (SELECT id FROM districts WHERE city_id = 64 AND name = 'Sivaslı' LIMIT 1), 'Atatürk Mah. (Tatar Beldesi)'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 64 AND name = 'Sivaslı' LIMIT 1), 'Dedeballar Mah. (Tatar Beldesi)' ),
@@ -31063,7 +31123,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 67 AND name = 'Ereğli' LIMIT 1), 'Örencik Mah. (Gülüç Beldesi)' ),
 ( (SELECT id FROM districts WHERE city_id = 67 AND name = 'Ereğli' LIMIT 1), 'Armutçuk Mah. (Kandilli Beldesi)' ),
 ( (SELECT id FROM districts WHERE city_id = 67 AND name = 'Ereğli' LIMIT 1), 'Geyikbeli Mah. (Kandilli Beldesi)' ),
-( (SELECT id FROM districts WHERE city_id = 67 AND name = 'Ereğli' LIMIT 1), 'Gökçeler Mah. (Kandilli Beldesi)' );
+( (SELECT id FROM districts WHERE city_id = 67 AND name = 'Ereğli' LIMIT 1), 'Gökçeler Mah. (Kandilli Beldesi)'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 67 AND name = 'Ereğli' LIMIT 1), 'Şehitlik Mah. (Kandilli Beldesi)' ),
@@ -32065,7 +32127,9 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 78 AND name = 'Safranbolu' LIMIT 1), 'Esentepe Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 78 AND name = 'Safranbolu' LIMIT 1), 'Hacıhalil Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 78 AND name = 'Safranbolu' LIMIT 1), 'Hüseyinçelebi Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 78 AND name = 'Safranbolu' LIMIT 1), 'İsmetpaşa Mah.' );
+( (SELECT id FROM districts WHERE city_id = 78 AND name = 'Safranbolu' LIMIT 1), 'İsmetpaşa Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;
 
 INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 78 AND name = 'Safranbolu' LIMIT 1), 'İzzetpaşa Mah.' ),
@@ -32429,5 +32493,6 @@ INSERT INTO neighborhoods (district_id, name) VALUES
 ( (SELECT id FROM districts WHERE city_id = 81 AND name = 'Yığılca' LIMIT 1), 'Ahmetçiler Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 81 AND name = 'Yığılca' LIMIT 1), 'Atatürk Mah.' ),
 ( (SELECT id FROM districts WHERE city_id = 81 AND name = 'Yığılca' LIMIT 1), 'Mareşal Fevzi  Çakmak Mah.' ),
-( (SELECT id FROM districts WHERE city_id = 81 AND name = 'Yığılca' LIMIT 1), 'Orhangazi Mah.' );
-
+( (SELECT id FROM districts WHERE city_id = 81 AND name = 'Yığılca' LIMIT 1), 'Orhangazi Mah.'
+ )
+ON CONFLICT (district_id, name) DO NOTHING;

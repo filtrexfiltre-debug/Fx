@@ -7,8 +7,12 @@ import { safeLocalStorage, readStoredBoolean } from '../lib/storage';
 export function useBranchSelection() {
   const [activeTab, setActiveTab] = useState<AppTabType>('musteri');
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(branchContext.getSelectedBranchId());
-  const [isGlobalUser, setIsGlobalUser] = useState<boolean>(branchContext.getIsGlobalUser());
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    branchContext.getSelectedBranchId()
+  );
+  const [isGlobalUser, setIsGlobalUser] = useState<boolean>(
+    branchContext.getIsGlobalUser()
+  );
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() =>
     readStoredBoolean('fx_drawer_collapsed', false)
   );

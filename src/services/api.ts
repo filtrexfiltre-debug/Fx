@@ -8,6 +8,7 @@
 import { Contact, Branch, CashBank, InterBranchTransfer, TaxAllocation, Employee, Product, Warehouse, StockMovement, WarehouseStock, ShippingRate, PaymentMovement, RevenueExpenseItem, RevenueExpenseCategoryItem, RevenueExpenseType, DebtCreditItem, DebtCreditPaymentRecord, DebtCreditType, DebtCreditStatus, PaymentMethodType } from '../types/fx';
 import { BRANCHES, CURRENT_TENANT, INITIAL_CONTACTS, INITIAL_CASH_BANKS, INITIAL_TRANSFERS, INITIAL_TAX_ALLOCATIONS, INITIAL_EMPLOYEES, INITIAL_WAREHOUSES, INITIAL_PRODUCTS, INITIAL_STOCK_MOVEMENTS, INITIAL_WAREHOUSE_STOCKS, INITIAL_SHIPPING_RATES, INITIAL_PAYMENT_MOVEMENTS, INITIAL_REVENUE_EXPENSES, INITIAL_REVENUE_EXPENSE_CATEGORIES, INITIAL_DEBT_CREDITS } from '../data/mockData';
 import { geoService } from './geoService';
+import { storageManager } from '../lib/storageManager';
 
 // Aktif şube ve kimlik yönetimi
 const STORAGE_KEYS = {
@@ -29,29 +30,23 @@ const STORAGE_KEYS = {
   REVENUE_EXPENSES: 'fx_revenue_expenses_list',
   REVENUE_EXPENSE_CATEGORIES: 'fx_revenue_expense_categories_list',
   DEBT_CREDITS: 'fx_debt_credits_list',
+  SERVIS_FISLERI: 'fx_servis_fisleri_list',
+  CIHAZLAR: 'fx_musteri_cihazlari_list',
+  CAGRI_KAYITLARI: 'fx_cagri_kayitlari_list',
+  BILDIRIMLER: 'fx_servis_bildirimleri_list',
 };
 
-// Şube listesini localStorage'dan al veya varsayılanı yükle
+// Şube listesini storageManager'dan al veya varsayılanı yükle
 const getStoredBranches = (): Branch[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.BRANCHES);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const existingIds = new Set(parsed.map((b: Branch) => b.id));
-        const merged = [...parsed];
-        for (const defaultBranch of BRANCHES) {
-          if (!existingIds.has(defaultBranch.id)) {
-            merged.push(defaultBranch);
-          }
-        }
-        return merged;
-      }
+  const parsed = storageManager.getItem<Branch[]>(STORAGE_KEYS.BRANCHES, BRANCHES, { isGlobal: true });
+  const existingIds = new Set(parsed.map((b: Branch) => b.id));
+  const merged = [...parsed];
+  for (const defaultBranch of BRANCHES) {
+    if (!existingIds.has(defaultBranch.id)) {
+      merged.push(defaultBranch);
     }
-  } catch (e) {
-    console.error('Kayıtlı şubeler okunamadı:', e);
   }
-  return [...BRANCHES];
+  return merged;
 };
 
 let inMemoryBranches: Branch[] = getStoredBranches();
@@ -65,8 +60,8 @@ class BranchContextManager {
   private listeners: Array<() => void> = [];
 
   constructor() {
-    this.selectedBranchId = localStorage.getItem(STORAGE_KEYS.BRANCH_ID) || DEFAULT_BRANCH_ID;
-    this.isGlobalUser = localStorage.getItem(STORAGE_KEYS.IS_GLOBAL_USER) === 'true';
+    this.selectedBranchId = storageManager.getItem<string>(STORAGE_KEYS.BRANCH_ID, DEFAULT_BRANCH_ID, { isGlobal: true });
+    this.isGlobalUser = storageManager.getItem<string>(STORAGE_KEYS.IS_GLOBAL_USER, 'false', { isGlobal: true }) === 'true';
   }
 
   public getSelectedBranchId(): string {
@@ -75,7 +70,7 @@ class BranchContextManager {
 
   public setSelectedBranchId(branchId: string): void {
     this.selectedBranchId = branchId;
-    localStorage.setItem(STORAGE_KEYS.BRANCH_ID, branchId);
+    storageManager.setItem(STORAGE_KEYS.BRANCH_ID, branchId, { isGlobal: true, skipEnvelope: true });
     this.notify();
   }
 
@@ -85,7 +80,7 @@ class BranchContextManager {
 
   public setIsGlobalUser(val: boolean): void {
     this.isGlobalUser = val;
-    localStorage.setItem(STORAGE_KEYS.IS_GLOBAL_USER, String(val));
+    storageManager.setItem(STORAGE_KEYS.IS_GLOBAL_USER, String(val), { isGlobal: true, skipEnvelope: true });
     this.notify();
   }
 
@@ -104,18 +99,7 @@ class BranchContextManager {
 export const branchContext = new BranchContextManager();
 
 const getStoredContacts = (): Contact[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.CONTACTS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı cari listesi okunamadı:', e);
-  }
-  return [...INITIAL_CONTACTS];
+  return storageManager.getItem<Contact[]>(STORAGE_KEYS.CONTACTS, [...INITIAL_CONTACTS]);
 };
 
 // Canlı Mock Veri Havuzu (Local preview ve .NET API simülasyonu)
@@ -125,186 +109,67 @@ let inMemoryTransfers = [...INITIAL_TRANSFERS];
 let inMemoryTaxAllocations = [...INITIAL_TAX_ALLOCATIONS];
 
 const getStoredEmployees = (): Employee[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.EMPLOYEES);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı personel listesi okunamadı:', e);
-  }
-  return [...INITIAL_EMPLOYEES];
+  return storageManager.getItem<Employee[]>(STORAGE_KEYS.EMPLOYEES, [...INITIAL_EMPLOYEES]);
 };
 
 let inMemoryEmployees: Employee[] = getStoredEmployees();
 
 const getStoredWarehouses = (): Warehouse[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.WAREHOUSES);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı depolar okunamadı:', e);
-  }
-  return [...INITIAL_WAREHOUSES];
+  return storageManager.getItem<Warehouse[]>(STORAGE_KEYS.WAREHOUSES, [...INITIAL_WAREHOUSES]);
 };
 
 let inMemoryWarehouses: Warehouse[] = getStoredWarehouses();
 
 const getStoredProducts = (): Product[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı ürünler okunamadı:', e);
-  }
-  return [...INITIAL_PRODUCTS];
+  return storageManager.getItem<Product[]>(STORAGE_KEYS.PRODUCTS, [...INITIAL_PRODUCTS]);
 };
 
 let inMemoryProducts: Product[] = getStoredProducts();
 
 const getStoredWarehouseStocks = (): WarehouseStock[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.WAREHOUSE_STOCKS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı depo stokları okunamadı:', e);
-  }
-  return [...INITIAL_WAREHOUSE_STOCKS];
+  return storageManager.getItem<WarehouseStock[]>(STORAGE_KEYS.WAREHOUSE_STOCKS, [...INITIAL_WAREHOUSE_STOCKS]);
 };
 
 let inMemoryWarehouseStocks: WarehouseStock[] = getStoredWarehouseStocks();
 
 const getStoredStockMovements = (): StockMovement[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.STOCK_MOVEMENTS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı stok hareketleri okunamadı:', e);
-  }
-  return [...INITIAL_STOCK_MOVEMENTS];
+  return storageManager.getItem<StockMovement[]>(STORAGE_KEYS.STOCK_MOVEMENTS, [...INITIAL_STOCK_MOVEMENTS]);
 };
 
 let inMemoryStockMovements: StockMovement[] = getStoredStockMovements();
 
 const getStoredShippingRates = (): ShippingRate[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.SHIPPING_RATES);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı kargo tarifeleri okunamadı:', e);
-  }
-  return [...INITIAL_SHIPPING_RATES];
+  return storageManager.getItem<ShippingRate[]>(STORAGE_KEYS.SHIPPING_RATES, [...INITIAL_SHIPPING_RATES]);
 };
 
 let inMemoryShippingRates: ShippingRate[] = getStoredShippingRates();
 
 const getStoredCashBanks = (): CashBank[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.CASH_BANKS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı kasa ve banka listesi okunamadı:', e);
-  }
-  return [...INITIAL_CASH_BANKS];
+  return storageManager.getItem<CashBank[]>(STORAGE_KEYS.CASH_BANKS, [...INITIAL_CASH_BANKS]);
 };
 
 inMemoryCashBanks = getStoredCashBanks();
 
 const getStoredPaymentMovements = (): PaymentMovement[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.PAYMENT_MOVEMENTS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı ödeme ve tahsilat hareketleri okunamadı:', e);
-  }
-  return [...INITIAL_PAYMENT_MOVEMENTS];
+  return storageManager.getItem<PaymentMovement[]>(STORAGE_KEYS.PAYMENT_MOVEMENTS, [...INITIAL_PAYMENT_MOVEMENTS]);
 };
 
 let inMemoryPaymentMovements: PaymentMovement[] = getStoredPaymentMovements();
 
 const getStoredRevenueExpenses = (): RevenueExpenseItem[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.REVENUE_EXPENSES);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı gelir ve gider hareketleri okunamadı:', e);
-  }
-  return [...INITIAL_REVENUE_EXPENSES];
+  return storageManager.getItem<RevenueExpenseItem[]>(STORAGE_KEYS.REVENUE_EXPENSES, [...INITIAL_REVENUE_EXPENSES]);
 };
 
 let inMemoryRevenueExpenses: RevenueExpenseItem[] = getStoredRevenueExpenses();
 
 const getStoredRevenueExpenseCategories = (): RevenueExpenseCategoryItem[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.REVENUE_EXPENSE_CATEGORIES);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {
-    console.error('Kayıtlı gelir-gider kategorileri okunamadı:', e);
-  }
-  return [...INITIAL_REVENUE_EXPENSE_CATEGORIES];
+  return storageManager.getItem<RevenueExpenseCategoryItem[]>(STORAGE_KEYS.REVENUE_EXPENSE_CATEGORIES, [...INITIAL_REVENUE_EXPENSE_CATEGORIES]);
 };
 
 let inMemoryRevenueExpenseCategories: RevenueExpenseCategoryItem[] = getStoredRevenueExpenseCategories();
 
 const getStoredDebtCredits = (): DebtCreditItem[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.DEBT_CREDITS);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Kayıtlı borç/alacak kayıtları okunamadı:', e);
-  }
-  return [...INITIAL_DEBT_CREDITS];
+  return storageManager.getItem<DebtCreditItem[]>(STORAGE_KEYS.DEBT_CREDITS, [...INITIAL_DEBT_CREDITS]);
 };
 
 let inMemoryDebtCredits: DebtCreditItem[] = getStoredDebtCredits();
@@ -1278,6 +1143,779 @@ export const fxApi = {
   },
 
   /**
+   * =========================================================================
+   * 10. SERVİS & BAKIM ENTEGRASYONU (SERVICES)
+   * =========================================================================
+   */
+  async getServiceTickets(branchId?: string): Promise<ApiResponse<any[]>> {
+    const selectedBranch = branchId || branchContext.getSelectedBranchId();
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.SERVIS_FISLERI);
+      let list = saved ? JSON.parse(saved) : [];
+      
+      if (selectedBranch !== 'all') {
+        list = list.filter((s: any) => s.branchId === selectedBranch);
+      }
+      
+      return {
+        success: true,
+        data: list,
+        appliedBranchFilter: selectedBranch,
+        isConsolidatedReport: selectedBranch === 'all',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (e) {
+      return { success: false, data: [], timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false };
+    }
+  },
+
+  async getDevices(branchId?: string): Promise<ApiResponse<any[]>> {
+    const selectedBranch = branchId || branchContext.getSelectedBranchId();
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CIHAZLAR);
+      let list = saved ? JSON.parse(saved) : [];
+      if (selectedBranch !== 'all') list = list.filter((d: any) => d.branchId === selectedBranch);
+      return { success: true, data: list, appliedBranchFilter: selectedBranch, isConsolidatedReport: selectedBranch === 'all', timestamp: new Date().toISOString() };
+    } catch { return { success: false, data: [], timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false }; }
+  },
+
+  async getCallRecords(branchId?: string): Promise<ApiResponse<any[]>> {
+    const selectedBranch = branchId || branchContext.getSelectedBranchId();
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CAGRI_KAYITLARI);
+      let list = saved ? JSON.parse(saved) : [];
+      if (selectedBranch !== 'all') list = list.filter((c: any) => c.branchId === selectedBranch);
+      return { success: true, data: list, appliedBranchFilter: selectedBranch, isConsolidatedReport: selectedBranch === 'all', timestamp: new Date().toISOString() };
+    } catch { return { success: false, data: [], timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false }; }
+  },
+
+  async getNotifications(branchId?: string): Promise<ApiResponse<any[]>> {
+    const selectedBranch = branchId || branchContext.getSelectedBranchId();
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.BILDIRIMLER);
+      let list = saved ? JSON.parse(saved) : [];
+      if (selectedBranch !== 'all') list = list.filter((n: any) => n.branchId === selectedBranch);
+      return { success: true, data: list, appliedBranchFilter: selectedBranch, isConsolidatedReport: selectedBranch === 'all', timestamp: new Date().toISOString() };
+    } catch { return { success: false, data: [], timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false }; }
+  },
+
+  async completeService(
+    servisId: string,
+    data: {
+      kalemler: any[];
+      odemeTuru: string;
+      tahsilatTutari: number;
+      kasaId?: string;
+      teknisyenNotu?: string;
+      musteriImza?: boolean;
+    }
+  ): Promise<ApiResponse<any>> {
+    // 1. Transaction Snapshot (Tüm ilgili depolar ve yerel veriler için geri alma yedeği)
+    const snapshotKeys = [
+      STORAGE_KEYS.SERVIS_FISLERI,
+      STORAGE_KEYS.CIHAZLAR,
+      STORAGE_KEYS.WAREHOUSE_STOCKS,
+      STORAGE_KEYS.STOCK_MOVEMENTS,
+      STORAGE_KEYS.CASH_BANKS,
+      STORAGE_KEYS.PAYMENT_MOVEMENTS,
+      STORAGE_KEYS.DEBT_CREDITS,
+      STORAGE_KEYS.CONTACTS,
+      STORAGE_KEYS.BILDIRIMLER
+    ];
+    const snapshot = storageManager.createSnapshot(snapshotKeys);
+    const inMemoryBackup = {
+      inMemoryContacts: JSON.parse(JSON.stringify(inMemoryContacts)),
+      inMemoryWarehouseStocks: JSON.parse(JSON.stringify(inMemoryWarehouseStocks)),
+      inMemoryStockMovements: JSON.parse(JSON.stringify(inMemoryStockMovements)),
+      inMemoryCashBanks: JSON.parse(JSON.stringify(inMemoryCashBanks)),
+      inMemoryPaymentMovements: JSON.parse(JSON.stringify(inMemoryPaymentMovements)),
+      inMemoryDebtCredits: JSON.parse(JSON.stringify(inMemoryDebtCredits)),
+    };
+
+    const rollback = () => {
+      storageManager.restoreSnapshot(snapshot);
+      inMemoryContacts = inMemoryBackup.inMemoryContacts;
+      inMemoryWarehouseStocks = inMemoryBackup.inMemoryWarehouseStocks;
+      inMemoryStockMovements = inMemoryBackup.inMemoryStockMovements;
+      inMemoryCashBanks = inMemoryBackup.inMemoryCashBanks;
+      inMemoryPaymentMovements = inMemoryBackup.inMemoryPaymentMovements;
+      inMemoryDebtCredits = inMemoryBackup.inMemoryDebtCredits;
+    };
+
+    try {
+      // 2. Servis Fişini Bul ve Doğrula
+      const saved = localStorage.getItem(STORAGE_KEYS.SERVIS_FISLERI);
+      let list = saved ? JSON.parse(saved) : [];
+      const sIndex = list.findIndex((s: any) => s.id === servisId);
+      
+      if (sIndex === -1) throw new Error('Servis kaydı bulunamadı.');
+      
+      const service = list[sIndex];
+      const targetWarehouseId = service.teknisyenDepoId || inMemoryWarehouses[0]?.id;
+
+      // 3. ÖN KONTROL (Pre-validation): Stok yeterlilik kontrolü (Asla kısmi düşüm yapma)
+      if (data.kalemler && data.kalemler.length > 0) {
+        for (const item of data.kalemler) {
+          if (item.stokId && Number(item.miktar) > 0) {
+            const wsRecord = inMemoryWarehouseStocks.find(
+              ws => ws.warehouseId === targetWarehouseId && ws.productId === item.stokId
+            );
+            const currentStock = wsRecord ? wsRecord.totalQuantity : 0;
+            if (currentStock < Number(item.miktar)) {
+              const prod = inMemoryProducts.find(p => p.id === item.stokId);
+              throw new Error(
+                `Yetersiz stok! "${prod?.name || item.stokAdi || 'Ürün'}" için depoda mevcut: ${currentStock}, gereken: ${item.miktar}. Servis kapatılamadı.`
+              );
+            }
+          }
+        }
+      }
+
+      // 4. CİHAZ BAKIM TARİHİ GÜNCELLEMESİ (Atomik Entegrasyon)
+      if (service.cihazId) {
+        const savedDevices = localStorage.getItem(STORAGE_KEYS.CIHAZLAR);
+        let devList = savedDevices ? JSON.parse(savedDevices) : [];
+        const devIdx = devList.findIndex((d: any) => d.id === service.cihazId);
+        if (devIdx !== -1) {
+          const device = devList[devIdx];
+          const completionDate = new Date().toISOString().slice(0, 10);
+          const nextDate = new Date(completionDate);
+          nextDate.setMonth(nextDate.getMonth() + (Number(device.bakimPeriyoduAy) || 6));
+
+          devList[devIdx] = {
+            ...device,
+            sonBakimTarihi: completionDate,
+            gelecekBakimTarihi: nextDate.toISOString().slice(0, 10),
+            durum: 'AKTIF'
+          };
+          localStorage.setItem(STORAGE_KEYS.CIHAZLAR, JSON.stringify(devList));
+        }
+      }
+
+      // 5. STOK DÜŞÜMLERİ
+      for (const item of data.kalemler) {
+        if (item.stokId && Number(item.miktar) > 0) {
+          await this.createStockMovement({
+            warehouseId: targetWarehouseId,
+            productId: item.stokId,
+            movementType: 'OUT',
+            quantity: Number(item.miktar),
+            unitPrice: item.birimFiyat || 0,
+            totalAmount: item.toplamTutar || 0,
+            documentNumber: service.servisNo,
+            contactTitle: service.cariTitle,
+            notes: `Servis kullanımı: ${service.servisNo}`,
+            movementDate: new Date().toISOString()
+          });
+        }
+      }
+
+      // 6. FİNANS & TAHSİLAT HAREKETİ
+      const matchingKasa = inMemoryCashBanks.find(k => k.id === data.kasaId);
+      if (data.tahsilatTutari > 0 && data.kasaId) {
+        await this.createPaymentMovement({
+          branchId: service.branchId,
+          movementType: 'TAHSILAT',
+          paymentMethod: data.odemeTuru === 'KREDI_KARTI' ? 'POS' : 'NAKIT',
+          contactId: service.cariId,
+          contactTitle: service.cariTitle,
+          cashBankId: data.kasaId,
+          cashBankName: matchingKasa?.name || 'Kasa',
+          amount: Number(data.tahsilatTutari),
+          currency: 'TRY',
+          movementDate: new Date().toISOString(),
+          status: 'COMPLETED',
+          description: `${service.servisNo} nolu servis tahsilatı`,
+          category: 'Servis Geliri'
+        });
+      }
+
+      // 7. CARİ / BORÇ KAYDI
+      const toplamServisTutari = data.kalemler.reduce((sum, item) => sum + (Number(item.toplamTutar) || 0), 0);
+      const kalanBorc = toplamServisTutari - Number(data.tahsilatTutari || 0);
+      
+      if (kalanBorc > 0.01) {
+        await this.createDebtCredit({
+          type: 'ALACAK',
+          contactId: service.cariId,
+          contactTitle: service.cariTitle,
+          totalAmount: toplamServisTutari,
+          paidAmount: Number(data.tahsilatTutari || 0),
+          issueDate: new Date().toISOString().slice(0, 10),
+          dueDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+          documentNumber: service.servisNo,
+          documentType: 'SERVIS_FISI',
+          description: `${service.servisNo} nolu servis bakiyesi`,
+          category: 'Servis Hizmeti',
+          branchId: service.branchId,
+          cashBankId: data.kasaId,
+          paymentMethod: data.odemeTuru as any
+        });
+      }
+
+      // 8. SERVİS FİŞİNİ TAMAMLA VE KAYDET
+      const updatedService = {
+        ...service,
+        ...data,
+        kasaAdi: matchingKasa?.name || 'Saha Kasası',
+        durum: 'TAMAMLANDI_KAPATILDI',
+        tamamlanmaTarihi: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      list[sIndex] = updatedService;
+      localStorage.setItem(STORAGE_KEYS.SERVIS_FISLERI, JSON.stringify(list));
+
+      // 8.1. Atomik Tamamlanma Bildirimi
+      const savedNotifs = localStorage.getItem(STORAGE_KEYS.BILDIRIMLER);
+      let notifList = savedNotifs ? JSON.parse(savedNotifs) : [];
+      const completeNotif = {
+        id: `notif-${Date.now()}`,
+        servisId: updatedService.id,
+        cariId: updatedService.cariId,
+        cariTitle: updatedService.cariTitle,
+        telefon: updatedService.telefon || inMemoryContacts.find(c => c.id === updatedService.cariId)?.mobilePhone1 || '',
+        kanal: 'WHATSAPP',
+        tip: 'IS_EMRI_TAMAMLANDI',
+        mesaj: `✅ Sayın ${updatedService.cariTitle}, ${updatedService.servisNo} nolu servis işlemi başarıyla tamamlanmıştır. Cihazınız devrede olup bir sonraki periyodik bakım takvimine işlenmiştir.`,
+        durum: 'ILETILDI',
+        gonderenKullanici: 'Sistem',
+        olusturmaTarihi: new Date().toISOString(),
+        branchId: service.branchId
+      };
+      notifList = [completeNotif, ...notifList];
+      localStorage.setItem(STORAGE_KEYS.BILDIRIMLER, JSON.stringify(notifList));
+
+      return {
+        success: true,
+        data: updatedService,
+        message: 'Servis başarıyla tamamlandı ve tüm modüller (Cihaz Bakım Takvimi, Stok, Kasa, Cari) atomik olarak güncellendi.',
+        appliedBranchFilter: service.branchId,
+        isConsolidatedReport: false,
+        timestamp: new Date().toISOString()
+      };
+    } catch (err) {
+      rollback();
+      throw new Error('Servis kapatma işlemi başarısız oldu (Tüm işlemler geri alındı): ' + (err instanceof Error ? err.message : 'Bilinmeyen hata'));
+    }
+  },
+
+  /**
+   * ATOMİK SERVİS VE BAĞLI KAYITLAR İŞLEMİ (Service Ticket + Device + Contact + Product + Notification)
+   * Herhangi bir aşamada hata olursa tüm değişiklikler geri alınır (Rollback).
+   */
+  async saveServiceTransaction(payload: {
+    serviceData: any;
+    editServisId?: string;
+    newDeviceData?: any;
+    updatedDeviceData?: any;
+    newContactData?: any;
+    updatedContactData?: any;
+    newProductData?: any;
+    notificationData?: any;
+    branchId?: string;
+  }): Promise<ApiResponse<any>> {
+    const snapshotKeys = [
+      STORAGE_KEYS.SERVIS_FISLERI,
+      STORAGE_KEYS.CIHAZLAR,
+      STORAGE_KEYS.CONTACTS,
+      STORAGE_KEYS.PRODUCTS,
+      STORAGE_KEYS.BILDIRIMLER
+    ];
+    const snapshot = storageManager.createSnapshot(snapshotKeys);
+    const inMemoryBackup = {
+      inMemoryContacts: JSON.parse(JSON.stringify(inMemoryContacts)),
+      inMemoryProducts: JSON.parse(JSON.stringify(inMemoryProducts)),
+    };
+
+    const rollback = () => {
+      storageManager.restoreSnapshot(snapshot);
+      inMemoryContacts = inMemoryBackup.inMemoryContacts;
+      inMemoryProducts = inMemoryBackup.inMemoryProducts;
+    };
+
+    try {
+      const activeBranch = payload.branchId || payload.serviceData.branchId || branchContext.getSelectedBranchId();
+      const activeBranchToSet = activeBranch === 'all' ? (inMemoryBranches[0]?.id || 'b1111111-1111-1111-1111-111111111111') : activeBranch;
+
+      let finalCariId = payload.serviceData.cariId;
+      let finalCariTitle = payload.serviceData.cariTitle;
+
+      // 1. Cari / Müşteri Yönetimi
+      if (payload.newContactData) {
+        const newContact: Contact = {
+          id: `c-${Date.now()}`,
+          tenantId: CURRENT_TENANT.id,
+          code: payload.newContactData.code || `C-${Date.now().toString().slice(-6)}`,
+          title: payload.newContactData.title || 'Yeni Cari',
+          contactTypeId: 'c-type-customer',
+          status: 'ACTIVE',
+          branchId: activeBranchToSet,
+          mobilePhone1: payload.newContactData.phone || '+90 (532) 000 00 00',
+          authorizedPerson: payload.newContactData.authorizedPerson || '',
+          formattedAddress: payload.newContactData.address || `${payload.newContactData.city || 'İzmir'} ${payload.newContactData.district || ''} ${payload.newContactData.neighborhood || ''}`,
+          districtId: payload.newContactData.district || '',
+          neighborhoodId: payload.newContactData.neighborhood || '',
+          openingBalance: 0,
+          currentBalance: 0,
+          currency: 'TRY',
+          isEinvoiceTaxpayer: false,
+          creditRiskLimit: 0,
+          defaultPaymentTermsDays: 0,
+          defaultDiscountAmount: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        inMemoryContacts = [newContact, ...inMemoryContacts];
+        localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(inMemoryContacts));
+        finalCariId = newContact.id;
+        finalCariTitle = newContact.title;
+      } else if (payload.updatedContactData && payload.updatedContactData.id) {
+        const cIdx = inMemoryContacts.findIndex(c => c.id === payload.updatedContactData.id);
+        if (cIdx !== -1) {
+          inMemoryContacts[cIdx] = {
+            ...inMemoryContacts[cIdx],
+            ...payload.updatedContactData,
+            title: payload.updatedContactData.title || inMemoryContacts[cIdx].title,
+            mobilePhone1: payload.updatedContactData.phone || inMemoryContacts[cIdx].mobilePhone1,
+            formattedAddress: payload.updatedContactData.address || inMemoryContacts[cIdx].formattedAddress
+          };
+          localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(inMemoryContacts));
+          finalCariId = inMemoryContacts[cIdx].id;
+          finalCariTitle = inMemoryContacts[cIdx].title;
+        }
+      }
+
+      // 2. Ürün / Stok Yönetimi (İsteğe Bağlı)
+      if (payload.newProductData) {
+        await this.createProduct({
+          skuCode: payload.newProductData.code || `STK-${Date.now().toString().slice(-5)}`,
+          name: payload.newProductData.name,
+          unitType: (payload.newProductData.unit as any) || 'Adet',
+          categoryGroup: payload.newProductData.category || 'Su Arıtma Cihazları',
+          brandName: payload.newProductData.brand || 'Filtrex',
+          purchasePrice: payload.newProductData.buyPrice || 0,
+          salePriceExclVat: payload.newProductData.sellPrice || 0,
+          vatRatePercent: payload.newProductData.vatRate !== undefined ? payload.newProductData.vatRate : 20,
+          isActive: true
+        } as any);
+      }
+
+      // 3. Cihaz Yönetimi
+      let finalCihazId = payload.serviceData.cihazId;
+      const savedDevices = localStorage.getItem(STORAGE_KEYS.CIHAZLAR);
+      let deviceList = savedDevices ? JSON.parse(savedDevices) : [];
+      let createdOrUpdatedDevice = null;
+
+      if (payload.newDeviceData) {
+        const newDevice = {
+          ...payload.newDeviceData,
+          id: payload.newDeviceData.id || `cihaz-${Date.now()}`,
+          cariId: finalCariId,
+          cariTitle: finalCariTitle,
+          branchId: activeBranchToSet,
+          createdAt: new Date().toISOString()
+        };
+        deviceList = [newDevice, ...deviceList];
+        localStorage.setItem(STORAGE_KEYS.CIHAZLAR, JSON.stringify(deviceList));
+        finalCihazId = newDevice.id;
+        createdOrUpdatedDevice = newDevice;
+      } else if (payload.updatedDeviceData && payload.updatedDeviceData.id) {
+        const dIdx = deviceList.findIndex((d: any) => d.id === payload.updatedDeviceData.id);
+        if (dIdx !== -1) {
+          deviceList[dIdx] = {
+            ...deviceList[dIdx],
+            ...payload.updatedDeviceData,
+            cariId: finalCariId,
+            cariTitle: finalCariTitle,
+            updatedAt: new Date().toISOString()
+          };
+          localStorage.setItem(STORAGE_KEYS.CIHAZLAR, JSON.stringify(deviceList));
+          finalCihazId = deviceList[dIdx].id;
+          createdOrUpdatedDevice = deviceList[dIdx];
+        }
+      } else if (finalCihazId) {
+        // Mevcut cihazın servis türü veya cari eşlemesini atomik senkronize et
+        const dIdx = deviceList.findIndex((d: any) => d.id === finalCihazId);
+        if (dIdx !== -1) {
+          deviceList[dIdx] = {
+            ...deviceList[dIdx],
+            cariId: finalCariId,
+            cariTitle: finalCariTitle,
+            servisTuru: payload.serviceData.servisTuru || deviceList[dIdx].servisTuru
+          };
+          localStorage.setItem(STORAGE_KEYS.CIHAZLAR, JSON.stringify(deviceList));
+          createdOrUpdatedDevice = deviceList[dIdx];
+        }
+      }
+
+      // 4. Servis Fişi Yönetimi
+      const savedServices = localStorage.getItem(STORAGE_KEYS.SERVIS_FISLERI);
+      let serviceList = savedServices ? JSON.parse(savedServices) : [];
+      let finalServiceTicket: any = null;
+
+      if (payload.editServisId) {
+        const sIdx = serviceList.findIndex((s: any) => s.id === payload.editServisId);
+        if (sIdx !== -1) {
+          finalServiceTicket = {
+            ...serviceList[sIdx],
+            ...payload.serviceData,
+            id: payload.editServisId,
+            cariId: finalCariId,
+            cariTitle: finalCariTitle,
+            cihazId: finalCihazId,
+            branchId: activeBranchToSet,
+            updatedAt: new Date().toISOString()
+          };
+          serviceList[sIdx] = finalServiceTicket;
+        } else {
+          // Eğer id ile kayıt bulunamazsa güvenli bir şekilde yeni kayıt olarak oluştur
+          const sId = payload.editServisId;
+          const sNo = payload.serviceData.servisNo || `SRV-2026-${String(serviceList.length + 1).padStart(4, '0')}`;
+          finalServiceTicket = {
+            ...payload.serviceData,
+            id: sId,
+            servisNo: sNo,
+            cariId: finalCariId,
+            cariTitle: finalCariTitle,
+            cihazId: finalCihazId,
+            branchId: activeBranchToSet,
+            createdAt: payload.serviceData.createdAt || new Date().toISOString()
+          };
+          serviceList = [finalServiceTicket, ...serviceList];
+        }
+      } else {
+        const sId = payload.serviceData.id || `srv-${Date.now()}`;
+        const sNo = payload.serviceData.servisNo || `SRV-2026-${String(serviceList.length + 1).padStart(4, '0')}`;
+        finalServiceTicket = {
+          ...payload.serviceData,
+          id: sId,
+          servisNo: sNo,
+          cariId: finalCariId,
+          cariTitle: finalCariTitle,
+          cihazId: finalCihazId,
+          branchId: activeBranchToSet,
+          createdAt: payload.serviceData.createdAt || new Date().toISOString()
+        };
+        serviceList = [finalServiceTicket, ...serviceList];
+      }
+      localStorage.setItem(STORAGE_KEYS.SERVIS_FISLERI, JSON.stringify(serviceList));
+
+      // 5. Bildirim Yönetimi (Servis ID ile atomik bağlama)
+      let finalNotification: any = null;
+      if (payload.notificationData) {
+        const savedNotifs = localStorage.getItem(STORAGE_KEYS.BILDIRIMLER);
+        let notifList = savedNotifs ? JSON.parse(savedNotifs) : [];
+        finalNotification = {
+          ...payload.notificationData,
+          id: payload.notificationData.id || `notif-${Date.now()}`,
+          servisId: finalServiceTicket.id, // Atomik olarak fişe bağlandı
+          cariId: finalCariId,
+          cariTitle: finalCariTitle,
+          branchId: activeBranchToSet,
+          olusturmaTarihi: payload.notificationData.olusturmaTarihi || new Date().toISOString()
+        };
+        notifList = [finalNotification, ...notifList];
+        localStorage.setItem(STORAGE_KEYS.BILDIRIMLER, JSON.stringify(notifList));
+      }
+
+      return {
+        success: true,
+        data: {
+          serviceTicket: finalServiceTicket,
+          device: createdOrUpdatedDevice,
+          notification: finalNotification,
+          cariId: finalCariId,
+          cihazId: finalCihazId
+        },
+        message: 'Servis fişi, müşteri, cihaz ve bildirim kayıtları atomik olarak başarıyla kaydedildi.',
+        appliedBranchFilter: activeBranchToSet,
+        isConsolidatedReport: false,
+        timestamp: new Date().toISOString()
+      };
+    } catch (err) {
+      rollback();
+      throw new Error('Servis ve bağlı kayıtlar kaydedilirken hata oluştu. Tüm işlemler geri alındı: ' + (err instanceof Error ? err.message : 'Bilinmeyen hata'));
+    }
+  },
+
+  /**
+   * ATOMİK ÇAĞRI VE SERVİS KAYDI (Call Record + Service Ticket + Notification)
+   */
+  async saveCallRecordAtomic(payload: {
+    callData: any;
+    serviceData?: any;
+    notificationData?: any;
+    branchId?: string;
+  }): Promise<ApiResponse<any>> {
+    const snapshot = {
+      calls: localStorage.getItem(STORAGE_KEYS.CAGRI_KAYITLARI),
+      services: localStorage.getItem(STORAGE_KEYS.SERVIS_FISLERI),
+      notifications: localStorage.getItem(STORAGE_KEYS.BILDIRIMLER)
+    };
+
+    const rollback = () => {
+      if (snapshot.calls !== null) localStorage.setItem(STORAGE_KEYS.CAGRI_KAYITLARI, snapshot.calls);
+      else localStorage.removeItem(STORAGE_KEYS.CAGRI_KAYITLARI);
+
+      if (snapshot.services !== null) localStorage.setItem(STORAGE_KEYS.SERVIS_FISLERI, snapshot.services);
+      else localStorage.removeItem(STORAGE_KEYS.SERVIS_FISLERI);
+
+      if (snapshot.notifications !== null) localStorage.setItem(STORAGE_KEYS.BILDIRIMLER, snapshot.notifications);
+      else localStorage.removeItem(STORAGE_KEYS.BILDIRIMLER);
+    };
+
+    try {
+      const activeBranch = payload.branchId || branchContext.getSelectedBranchId();
+      const activeBranchToSet = activeBranch === 'all' ? (inMemoryBranches[0]?.id || 'b1111111-1111-1111-1111-111111111111') : activeBranch;
+
+      let createdServisId: string | undefined = undefined;
+
+      // 1. Yeni Servis Varsa
+      if (payload.serviceData) {
+        const savedServices = localStorage.getItem(STORAGE_KEYS.SERVIS_FISLERI);
+        let serviceList = savedServices ? JSON.parse(savedServices) : [];
+        const sId = payload.serviceData.id || `srv-${Date.now()}`;
+        const sNo = payload.serviceData.servisNo || `SRV-2026-${String(serviceList.length + 1).padStart(4, '0')}`;
+        const newTicket = {
+          ...payload.serviceData,
+          id: sId,
+          servisNo: sNo,
+          branchId: activeBranchToSet,
+          createdAt: new Date().toISOString()
+        };
+        serviceList = [newTicket, ...serviceList];
+        localStorage.setItem(STORAGE_KEYS.SERVIS_FISLERI, JSON.stringify(serviceList));
+        createdServisId = sId;
+      }
+
+      // 2. Çağrı Kaydı
+      const savedCalls = localStorage.getItem(STORAGE_KEYS.CAGRI_KAYITLARI);
+      let callList = savedCalls ? JSON.parse(savedCalls) : [];
+      const newCall = {
+        ...payload.callData,
+        id: payload.callData.id || `call-${Date.now()}`,
+        olusturulanServisFisId: createdServisId,
+        branchId: activeBranchToSet,
+        createdAt: new Date().toISOString()
+      };
+      callList = [newCall, ...callList];
+      localStorage.setItem(STORAGE_KEYS.CAGRI_KAYITLARI, JSON.stringify(callList));
+
+      // 3. Bildirim Varsa
+      let newNotif = null;
+      if (payload.notificationData) {
+        const savedNotifs = localStorage.getItem(STORAGE_KEYS.BILDIRIMLER);
+        let notifList = savedNotifs ? JSON.parse(savedNotifs) : [];
+        newNotif = {
+          ...payload.notificationData,
+          id: payload.notificationData.id || `notif-${Date.now()}`,
+          servisId: createdServisId,
+          branchId: activeBranchToSet,
+          olusturmaTarihi: new Date().toISOString()
+        };
+        notifList = [newNotif, ...notifList];
+        localStorage.setItem(STORAGE_KEYS.BILDIRIMLER, JSON.stringify(notifList));
+      }
+
+      return {
+        success: true,
+        data: { call: newCall, serviceId: createdServisId, notification: newNotif },
+        appliedBranchFilter: activeBranchToSet,
+        isConsolidatedReport: false,
+        timestamp: new Date().toISOString()
+      };
+    } catch (err) {
+      rollback();
+      throw new Error('Çağrı ve servis kaydı kaydedilemedi. Değişiklikler geri alındı: ' + (err instanceof Error ? err.message : 'Bilinmeyen hata'));
+    }
+  },
+
+  async createServiceTicket(data: any): Promise<ApiResponse<any>> {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.SERVIS_FISLERI);
+      let list = saved ? JSON.parse(saved) : [];
+      const newTicket = { ...data, id: data.id || `srv-${Date.now()}`, createdAt: new Date().toISOString() };
+      list = [newTicket, ...list];
+      localStorage.setItem(STORAGE_KEYS.SERVIS_FISLERI, JSON.stringify(list));
+      return { success: true, data: newTicket, appliedBranchFilter: newTicket.branchId, isConsolidatedReport: false, timestamp: new Date().toISOString() };
+    } catch { return { success: false, data: null, timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false }; }
+  },
+
+  async updateServiceTicket(id: string, data: any): Promise<ApiResponse<any>> {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.SERVIS_FISLERI);
+      let list = saved ? JSON.parse(saved) : [];
+      const index = list.findIndex((s: any) => s.id === id);
+      if (index === -1) throw new Error('Servis bulunamadı');
+      list[index] = { ...list[index], ...data, updatedAt: new Date().toISOString() };
+      localStorage.setItem(STORAGE_KEYS.SERVIS_FISLERI, JSON.stringify(list));
+      return { success: true, data: list[index], appliedBranchFilter: list[index].branchId, isConsolidatedReport: false, timestamp: new Date().toISOString() };
+    } catch { return { success: false, data: null, timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false }; }
+  },
+
+  async createDevice(data: any): Promise<ApiResponse<any>> {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CIHAZLAR);
+      let list = saved ? JSON.parse(saved) : [];
+      const newDevice = { ...data, id: data.id || `cihaz-${Date.now()}` };
+      list = [newDevice, ...list];
+      localStorage.setItem(STORAGE_KEYS.CIHAZLAR, JSON.stringify(list));
+      return { success: true, data: newDevice, appliedBranchFilter: newDevice.branchId, isConsolidatedReport: false, timestamp: new Date().toISOString() };
+    } catch { return { success: false, data: null, timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false }; }
+  },
+
+  async updateDevice(id: string, data: any): Promise<ApiResponse<any>> {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CIHAZLAR);
+      let list = saved ? JSON.parse(saved) : [];
+      const index = list.findIndex((d: any) => d.id === id);
+      if (index === -1) throw new Error('Cihaz bulunamadı');
+      list[index] = { ...list[index], ...data };
+      localStorage.setItem(STORAGE_KEYS.CIHAZLAR, JSON.stringify(list));
+      return { success: true, data: list[index], appliedBranchFilter: list[index].branchId, isConsolidatedReport: false, timestamp: new Date().toISOString() };
+    } catch { return { success: false, data: null, timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false }; }
+  },
+
+  /**
+   * ATOMİK CİHAZ KAYIT VE GÜNCELLEME (Device + Open Service Tickets + Contact Sync)
+   */
+  async saveDeviceAtomic(payload: {
+    deviceData: any;
+    editId?: string;
+    branchId?: string;
+  }): Promise<ApiResponse<{ device: any; affectedServicesCount: number }>> {
+    const snapshot = {
+      devices: localStorage.getItem(STORAGE_KEYS.CIHAZLAR),
+      services: localStorage.getItem(STORAGE_KEYS.SERVIS_FISLERI),
+      contacts: localStorage.getItem(STORAGE_KEYS.CONTACTS),
+      inMemoryContacts: JSON.parse(JSON.stringify(inMemoryContacts))
+    };
+
+    const rollback = () => {
+      if (snapshot.devices !== null) localStorage.setItem(STORAGE_KEYS.CIHAZLAR, snapshot.devices);
+      else localStorage.removeItem(STORAGE_KEYS.CIHAZLAR);
+
+      if (snapshot.services !== null) localStorage.setItem(STORAGE_KEYS.SERVIS_FISLERI, snapshot.services);
+      else localStorage.removeItem(STORAGE_KEYS.SERVIS_FISLERI);
+
+      if (snapshot.contacts !== null) localStorage.setItem(STORAGE_KEYS.CONTACTS, snapshot.contacts);
+      else localStorage.removeItem(STORAGE_KEYS.CONTACTS);
+
+      inMemoryContacts = snapshot.inMemoryContacts;
+    };
+
+    try {
+      const activeBranch = payload.branchId || branchContext.getSelectedBranchId();
+      const activeBranchToSet = activeBranch === 'all' ? (inMemoryBranches[0]?.id || 'b1111111-1111-1111-1111-111111111111') : activeBranch;
+
+      const savedDevices = localStorage.getItem(STORAGE_KEYS.CIHAZLAR);
+      let deviceList = savedDevices ? JSON.parse(savedDevices) : [];
+      let savedDev: any;
+
+      if (payload.editId) {
+        const dIdx = deviceList.findIndex((d: any) => d.id === payload.editId);
+        if (dIdx === -1) throw new Error('Güncellenecek cihaz bulunamadı.');
+        savedDev = {
+          ...deviceList[dIdx],
+          ...payload.deviceData,
+          id: payload.editId,
+          branchId: deviceList[dIdx].branchId || activeBranchToSet,
+          updatedAt: new Date().toISOString()
+        };
+        deviceList[dIdx] = savedDev;
+      } else {
+        savedDev = {
+          ...payload.deviceData,
+          id: `cihaz-${Date.now()}`,
+          branchId: activeBranchToSet,
+          createdAt: new Date().toISOString()
+        };
+        deviceList = [savedDev, ...deviceList];
+      }
+      localStorage.setItem(STORAGE_KEYS.CIHAZLAR, JSON.stringify(deviceList));
+
+      // Bağlı açık servis fişlerini atomik senkronize et
+      let affectedServicesCount = 0;
+      if (payload.editId) {
+        const savedServices = localStorage.getItem(STORAGE_KEYS.SERVIS_FISLERI);
+        if (savedServices) {
+          let serviceList = JSON.parse(savedServices);
+          let changed = false;
+          serviceList = serviceList.map((s: any) => {
+            if (s.cihazId === payload.editId && (s.durum === 'RANDEVU_PLANLANDI' || s.durum === 'YOLDA_SAHADA' || s.durum === 'BEKLEMEDE')) {
+              affectedServicesCount++;
+              changed = true;
+              return {
+                ...s,
+                cihazAdi: savedDev.cihazAdi,
+                seriNo: savedDev.seriNo,
+                markaModel: savedDev.markaModel,
+                servisTuru: savedDev.servisTuru || s.servisTuru,
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return s;
+          });
+          if (changed) {
+            localStorage.setItem(STORAGE_KEYS.SERVIS_FISLERI, JSON.stringify(serviceList));
+          }
+        }
+      }
+
+      // Cari bilgileri belirtilmişse cariyi atomik senkronize et
+      if (savedDev.cariId) {
+        const cIdx = inMemoryContacts.findIndex(c => c.id === savedDev.cariId);
+        if (cIdx !== -1) {
+          inMemoryContacts[cIdx] = {
+            ...inMemoryContacts[cIdx],
+            mobilePhone1: savedDev.yetkiliTelefon || inMemoryContacts[cIdx].mobilePhone1,
+            authorizedPerson: savedDev.yetkiliKisi || inMemoryContacts[cIdx].authorizedPerson,
+            formattedAddress: savedDev.acikAdres || inMemoryContacts[cIdx].formattedAddress,
+            districtId: savedDev.ilce || inMemoryContacts[cIdx].districtId,
+            neighborhoodId: savedDev.mahalle || inMemoryContacts[cIdx].neighborhoodId,
+          };
+          localStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(inMemoryContacts));
+        }
+      }
+
+      return {
+        success: true,
+        data: { device: savedDev, affectedServicesCount },
+        message: 'Cihaz kartı, bağlı servis fişleri ve cari bilgileri atomik olarak güncellendi.',
+        appliedBranchFilter: activeBranchToSet,
+        isConsolidatedReport: false,
+        timestamp: new Date().toISOString()
+      };
+    } catch (err) {
+      rollback();
+      throw new Error('Cihaz kaydedilirken hata oluştu. Değişiklikler geri alındı: ' + (err instanceof Error ? err.message : 'Bilinmeyen hata'));
+    }
+  },
+
+  async createCallRecord(data: any): Promise<ApiResponse<any>> {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CAGRI_KAYITLARI);
+      let list = saved ? JSON.parse(saved) : [];
+      const newCall = { ...data, id: data.id || `call-${Date.now()}`, createdAt: new Date().toISOString() };
+      list = [newCall, ...list];
+      localStorage.setItem(STORAGE_KEYS.CAGRI_KAYITLARI, JSON.stringify(list));
+      return { success: true, data: newCall, appliedBranchFilter: newCall.branchId, isConsolidatedReport: false, timestamp: new Date().toISOString() };
+    } catch { return { success: false, data: null, timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false }; }
+  },
+
+  async createNotification(data: any): Promise<ApiResponse<any>> {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.BILDIRIMLER);
+      let list = saved ? JSON.parse(saved) : [];
+      const newNotif = { ...data, id: data.id || `notif-${Date.now()}`, createdAt: new Date().toISOString() };
+      list = [newNotif, ...list];
+      localStorage.setItem(STORAGE_KEYS.BILDIRIMLER, JSON.stringify(list));
+      return { success: true, data: newNotif, appliedBranchFilter: newNotif.branchId, isConsolidatedReport: false, timestamp: new Date().toISOString() };
+    } catch { return { success: false, data: null, timestamp: new Date().toISOString(), appliedBranchFilter: null, isConsolidatedReport: false }; }
+  },
+
+  /**
    * ŞUBENİN İSTATİSTİKLERİNİ GETİR (Cari sayısı, Kasa sayısı)
    */
   getBranchDetails(branchId: string) {
@@ -1495,11 +2133,23 @@ export const fxApi = {
       volumeM3,
       calculatedDesi,
       openingStockQuantity,
-      code: productData.skuCode,
-      barcode: productData.barcodeEan13 || '',
-      unit: productData.unitType,
+      skuCode: productData.skuCode || (productData as any).code || '',
+      code: productData.skuCode || (productData as any).code || '',
+      barcodeEan13: productData.barcodeEan13 || (productData as any).barcode || '',
+      barcode: productData.barcodeEan13 || (productData as any).barcode || '',
+      unitType: productData.unitType || (productData as any).unit || 'Adet',
+      unit: productData.unitType || (productData as any).unit || 'Adet',
+      categoryGroup: productData.categoryGroup || (productData as any).category || '',
+      category: productData.categoryGroup || (productData as any).category || '',
+      brandName: productData.brandName || (productData as any).brand || '',
+      brand: productData.brandName || (productData as any).brand || '',
       vatRate: vatRatePercent,
-      salePrice: salePriceExclVat,
+      salePrice: Math.round(salePriceExclVat * 10000) / 10000,
+      sellPrice: Math.round(salePriceExclVat * 10000) / 10000,
+      sellingPrice: Math.round(salePriceExclVat * 10000) / 10000,
+      buyPrice: purchasePrice,
+      currentQuantity: openingStockQuantity,
+      currentStock: openingStockQuantity,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -1608,6 +2258,13 @@ export const fxApi = {
     const volumeM3 = updateData.volumeM3 !== undefined ? Number(updateData.volumeM3) : (current.volumeM3 || 0);
     const calculatedDesi = updateData.calculatedDesi !== undefined ? Number(updateData.calculatedDesi) : (volumeM3 > 0 ? Math.round(volumeM3 * 333.33 * 100) / 100 : 0);
 
+    const finalSku = updateData.skuCode || (updateData as any).code || current.skuCode || current.code || '';
+    const finalBarcode = updateData.barcodeEan13 || (updateData as any).barcode || current.barcodeEan13 || current.barcode || '';
+    const finalUnit = updateData.unitType || (updateData as any).unit || current.unitType || current.unit || 'Adet';
+    const finalCategory = updateData.categoryGroup || (updateData as any).category || current.categoryGroup || current.category || '';
+    const finalBrand = updateData.brandName || (updateData as any).brand || current.brandName || current.brand || '';
+    const roundedSalePrice = Math.round(salePriceExclVat * 10000) / 10000;
+
     const updatedProduct: Product = {
       ...current,
       ...updateData,
@@ -1615,14 +2272,26 @@ export const fxApi = {
       purchaseDiscountPercent,
       netPurchaseCost: Math.round(netPurchaseCost * 10000) / 10000,
       profitMarginPercent: Math.round(profitMarginPercent * 100) / 100,
-      salePriceExclVat: Math.round(salePriceExclVat * 10000) / 10000,
+      salePriceExclVat: roundedSalePrice,
       vatRatePercent,
       salePriceInclVat: Math.round(salePriceInclVat * 10000) / 10000,
       volumeM3,
       calculatedDesi,
-      code: updateData.skuCode || current.skuCode,
-      barcode: updateData.barcodeEan13 || current.barcodeEan13 || '',
-      unit: updateData.unitType || current.unitType,
+      skuCode: finalSku,
+      code: finalSku,
+      barcodeEan13: finalBarcode,
+      barcode: finalBarcode,
+      unitType: finalUnit,
+      unit: finalUnit,
+      categoryGroup: finalCategory,
+      category: finalCategory,
+      brandName: finalBrand,
+      brand: finalBrand,
+      vatRate: vatRatePercent,
+      salePrice: roundedSalePrice,
+      sellPrice: roundedSalePrice,
+      sellingPrice: roundedSalePrice,
+      buyPrice: purchasePrice,
       updatedAt: new Date().toISOString(),
     };
 
@@ -1844,12 +2513,45 @@ export const fxApi = {
     const id = `sm-${Date.now()}`;
     const product = inMemoryProducts.find(p => p.id === movementData.productId);
     const warehouse = inMemoryWarehouses.find(w => w.id === movementData.warehouseId);
+    
+    if (!movementData.productId || !movementData.warehouseId) {
+      throw new Error('Ürün ve depo seçimi zorunludur.');
+    }
+
     const selectedBranch = branchContext.getSelectedBranchId();
     if (warehouse && selectedBranch !== 'all' && getWarehouseBranchId(warehouse) !== selectedBranch) {
       throw new Error('Seçili şubeye ait olmayan depoya stok hareketi eklenemez.');
     }
 
-    const quantity = Number(movementData.quantity) || 0;
+    // 1. Miktar Pozitiflik ve Sayısallık Doğrulaması (Negatif veya geçersiz miktar engeli)
+    const quantity = Number(movementData.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error('Stok hareket miktarı sıfırdan büyük pozitif bir sayı olmalıdır.');
+    }
+
+    const isOutMovement = movementData.movementType === 'OUT' || movementData.movementType === 'TRANSFER_OUT';
+    const isInMovement = movementData.movementType === 'IN' || movementData.movementType === 'TRANSFER_IN';
+
+    if (!isOutMovement && !isInMovement) {
+      throw new Error(`Geçersiz stok işlem türü: ${movementData.movementType}`);
+    }
+
+    // 2. Mevcut Depo Stok Kaydını Bul ve Çıkış/Düşüm Kontrolü Yap
+    let wsRecord = inMemoryWarehouseStocks.find(
+      ws => ws.warehouseId === movementData.warehouseId && ws.productId === movementData.productId
+    );
+
+    const currentStockQty = wsRecord ? wsRecord.totalQuantity : 0;
+
+    // Hata kontrolü: Çıkış miktarı mevcut stoğu aşıyorsa reddet (asla sessizce sıfıra sabitleme)
+    if (isOutMovement && currentStockQty < quantity) {
+      const whName = warehouse ? warehouse.name : 'Seçili depoda';
+      const prodName = product ? product.name : (movementData.productName || 'Ürün');
+      throw new Error(
+        `Yetersiz stok! ${whName} deposunda "${prodName}" için mevcut stok: ${currentStockQty}, çıkış yapılmak istenen: ${quantity}. Çıkış miktarı mevcut stoğu aşamaz.`
+      );
+    }
+
     const unitPrice = Number(movementData.unitPrice) || (product ? product.netPurchaseCost : 0);
     const totalAmount = Number(movementData.totalAmount) || (quantity * unitPrice);
 
@@ -1867,18 +2569,7 @@ export const fxApi = {
       createdAt: new Date().toISOString(),
     };
 
-    inMemoryStockMovements.unshift(newMovement);
-    try {
-      localStorage.setItem(STORAGE_KEYS.STOCK_MOVEMENTS, JSON.stringify(inMemoryStockMovements));
-    } catch (e) {
-      console.error(e);
-    }
-
-    // Tam Otomasyon: Depo Bazında Stok Dağılımını anında güncelle
-    let wsRecord = inMemoryWarehouseStocks.find(
-      ws => ws.warehouseId === movementData.warehouseId && ws.productId === movementData.productId
-    );
-
+    // 3. Depo Bazında Stok Dağılımını Güncelle
     if (!wsRecord) {
       wsRecord = {
         id: `ws-${Date.now()}`,
@@ -1886,8 +2577,8 @@ export const fxApi = {
         warehouseId: movementData.warehouseId,
         warehouseName: warehouse ? warehouse.name : '',
         productId: movementData.productId,
-        productSku: product ? product.skuCode : '',
-        productName: product ? product.name : '',
+        productSku: product ? product.skuCode : (movementData.productSku || ''),
+        productName: product ? product.name : (movementData.productName || ''),
         unitType: product ? product.unitType : 'Adet',
         criticalStockLevel: 20.0,
         totalQuantity: 0,
@@ -1897,10 +2588,10 @@ export const fxApi = {
       inMemoryWarehouseStocks.push(wsRecord);
     }
 
-    if (movementData.movementType === 'IN' || movementData.movementType === 'TRANSFER_IN') {
+    if (isInMovement) {
       wsRecord.totalQuantity += quantity;
-    } else if (movementData.movementType === 'OUT' || movementData.movementType === 'TRANSFER_OUT') {
-      wsRecord.totalQuantity = Math.max(0, wsRecord.totalQuantity - quantity);
+    } else if (isOutMovement) {
+      wsRecord.totalQuantity -= quantity;
     }
 
     const netCost = product ? product.netPurchaseCost : unitPrice;
@@ -1908,7 +2599,10 @@ export const fxApi = {
     wsRecord.totalCostValue = wsRecord.totalQuantity * netCost;
     wsRecord.totalCurrentValue = wsRecord.totalQuantity * saleVal;
 
+    // 4. Hareketi Listeye Ekle ve Kalıcı Olarak Sakla
+    inMemoryStockMovements.unshift(newMovement);
     try {
+      localStorage.setItem(STORAGE_KEYS.STOCK_MOVEMENTS, JSON.stringify(inMemoryStockMovements));
       localStorage.setItem(STORAGE_KEYS.WAREHOUSE_STOCKS, JSON.stringify(inMemoryWarehouseStocks));
     } catch (e) {
       console.error(e);
@@ -1935,9 +2629,16 @@ export const fxApi = {
     contactTitle?: string,
     notes?: string
   ): Promise<ApiResponse<{ outMovement: StockMovement; inMovement: StockMovement }>> {
-    if (sourceWhId === targetWhId) {
-      throw new Error('Kaynak ve hedef depo aynı olamaz.');
+    // 1. Pozitif miktar doğrulaması (Negatif veya 0 transferler kesinlikle engellenir)
+    const numericQuantity = Number(quantity);
+    if (!Number.isFinite(numericQuantity) || numericQuantity <= 0) {
+      throw new Error('Transfer miktarı sıfırdan büyük pozitif bir sayı olmalıdır.');
     }
+
+    if (!sourceWhId || !targetWhId || sourceWhId === targetWhId) {
+      throw new Error('Kaynak ve hedef depo farklı ve geçerli depolar olmalıdır.');
+    }
+
     const product = inMemoryProducts.find(p => p.id === productId);
     const sourceWh = inMemoryWarehouses.find(w => w.id === sourceWhId);
     const targetWh = inMemoryWarehouses.find(w => w.id === targetWhId);
@@ -1954,18 +2655,22 @@ export const fxApi = {
       throw new Error('Seçili şubeye ait olmayan depolar arasında transfer yapılamaz.');
     }
 
+    // 2. Kaynak depo stok yeterlilik kontrolü
     const sourceStock = inMemoryWarehouseStocks.find(
       ws => ws.warehouseId === sourceWhId && ws.productId === productId
     );
-    if (!sourceStock || sourceStock.totalQuantity < quantity) {
-      throw new Error(`Kaynak depoda (${sourceWh.name}) yeterli stok bulunmuyor. Mevcut Stok: ${sourceStock?.totalQuantity || 0}`);
+    const currentSourceQty = sourceStock ? sourceStock.totalQuantity : 0;
+    if (!sourceStock || currentSourceQty < numericQuantity) {
+      throw new Error(
+        `Kaynak depoda (${sourceWh.name}) yeterli stok bulunmuyor. Mevcut Stok: ${currentSourceQty}, Transfer Edilmek İstenen: ${numericQuantity}. Çıkış miktarı mevcut stoğu aşamaz.`
+      );
     }
 
     const effectiveUnitPrice = unitPrice > 0 ? unitPrice : product.netPurchaseCost;
-    const totalAmount = quantity * effectiveUnitPrice;
+    const totalAmount = numericQuantity * effectiveUnitPrice;
     const now = new Date().toISOString();
 
-    // 1. Kaynaktan Çıkış Hareketi
+    // 3. Kaynaktan Çıkış Hareketi
     const outMovement: StockMovement = {
       id: `sm-trf-out-${Date.now()}`,
       tenantId: CURRENT_TENANT.id,
@@ -1976,7 +2681,7 @@ export const fxApi = {
       warehouseId: sourceWh.id,
       warehouseName: sourceWh.name,
       movementType: 'TRANSFER_OUT',
-      quantity,
+      quantity: numericQuantity,
       unitPrice: effectiveUnitPrice,
       totalAmount,
       documentNumber: documentNumber || `TRF-${Date.now().toString().slice(-6)}`,
@@ -1985,7 +2690,7 @@ export const fxApi = {
       createdAt: now,
     };
 
-    // 2. Hedefe Giriş Hareketi
+    // 4. Hedefe Giriş Hareketi
     const inMovement: StockMovement = {
       id: `sm-trf-in-${Date.now() + 1}`,
       tenantId: CURRENT_TENANT.id,
@@ -1996,7 +2701,7 @@ export const fxApi = {
       warehouseId: targetWh.id,
       warehouseName: targetWh.name,
       movementType: 'TRANSFER_IN',
-      quantity,
+      quantity: numericQuantity,
       unitPrice: effectiveUnitPrice,
       totalAmount,
       documentNumber: outMovement.documentNumber,
@@ -2005,15 +2710,8 @@ export const fxApi = {
       createdAt: now,
     };
 
-    inMemoryStockMovements.unshift(inMovement, outMovement);
-    try {
-      localStorage.setItem(STORAGE_KEYS.STOCK_MOVEMENTS, JSON.stringify(inMemoryStockMovements));
-    } catch (e) {
-      console.error(e);
-    }
-
-    // 3. Stok miktarlarını güncelle
-    sourceStock.totalQuantity = Math.max(0, sourceStock.totalQuantity - quantity);
+    // 5. Stok miktarlarını tutarlı olarak güncelle
+    sourceStock.totalQuantity -= numericQuantity;
     sourceStock.totalCostValue = sourceStock.totalQuantity * product.netPurchaseCost;
     sourceStock.totalCurrentValue = sourceStock.totalQuantity * product.salePriceExclVat;
 
@@ -2037,11 +2735,14 @@ export const fxApi = {
       };
       inMemoryWarehouseStocks.push(targetStock);
     }
-    targetStock.totalQuantity += quantity;
+    targetStock.totalQuantity += numericQuantity;
     targetStock.totalCostValue = targetStock.totalQuantity * product.netPurchaseCost;
     targetStock.totalCurrentValue = targetStock.totalQuantity * product.salePriceExclVat;
 
+    // 6. Hareketleri Listeye Ekle ve Kaydet
+    inMemoryStockMovements.unshift(inMovement, outMovement);
     try {
+      localStorage.setItem(STORAGE_KEYS.STOCK_MOVEMENTS, JSON.stringify(inMemoryStockMovements));
       localStorage.setItem(STORAGE_KEYS.WAREHOUSE_STOCKS, JSON.stringify(inMemoryWarehouseStocks));
     } catch (e) {
       console.error(e);
@@ -2050,7 +2751,7 @@ export const fxApi = {
     return {
       success: true,
       data: { outMovement, inMovement },
-      message: `${quantity} ${product.unitType} ${product.name}, ${sourceWh.name} deposundan ${targetWh.name} deposuna başarıyla transfer edildi.`,
+      message: `${numericQuantity} ${product.unitType} ${product.name}, ${sourceWh.name} deposundan ${targetWh.name} deposuna başarıyla transfer edildi.`,
       appliedBranchFilter: null,
       isConsolidatedReport: false,
       timestamp: new Date().toISOString(),

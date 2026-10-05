@@ -965,9 +965,20 @@ export const PersonelListesi: React.FC = () => {
   // AG Grid rowSelection ayarları
   const rowSelection = useMemo<RowSelectionOptions<Employee>>(
     () => ({
-      mode: 'singleRow',
-      checkboxes: false,
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
       enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
     }),
     []
   );
@@ -1265,15 +1276,6 @@ export const PersonelListesi: React.FC = () => {
 
           {/* Sağ: Dışa Aktar, Paneli Aç/Kapat, Yeni Personel Ekle */}
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 rounded-md transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-blue-600" />
-              CSV
-            </button>
-
             <button
               type="button"
               onClick={handleExportPdf}

@@ -46,6 +46,7 @@ import {
   Cari, 
   Personel 
 } from '../../types';
+import { getServiceTypeLabel } from '../../lib/serviceUtils';
 import { ServisFisiYazdirModal } from './ServisFisiYazdirModal';
 
 interface ServisFisDetayModalProps {
@@ -160,20 +161,20 @@ export const ServisFisDetayModal: React.FC<ServisFisDetayModalProps> = ({
     const item = stoklar.find(s => s.id === selectedStokId);
     if (!item) return;
 
-    const kdvRate = 20;
-    const price = item.sellingPrice || 500;
+    const kdvRate = item.vatRate !== undefined ? item.vatRate : ((item as any).vatRatePercent !== undefined ? (item as any).vatRatePercent : 20);
+    const price = item.sellPrice ?? item.sellingPrice ?? (item as any).salePriceExclVat ?? (item as any).salePrice ?? 0;
     const totalWithVat = (price * miktarInput) * (1 + kdvRate / 100);
 
     const newKalem: ServisFisKalemi = {
       id: `k-${Date.now()}`,
       stokId: item.id,
-      stokKodu: item.code,
+      stokKodu: item.code || (item as any).skuCode || '',
       stokAdi: item.name,
-      birim: item.unit || 'Adet',
+      birim: item.unit || (item as any).unitType || 'Adet',
       miktar: miktarInput,
       birimFiyat: price,
       kdvOrani: kdvRate,
-      toplamTutar: totalWithVat
+      toplamTutar: Math.round(totalWithVat * 100) / 100
     };
 
     setKalemler(prev => [...prev, newKalem]);
@@ -409,9 +410,9 @@ export const ServisFisDetayModal: React.FC<ServisFisDetayModalProps> = ({
                     <span className="font-mono bg-slate-100 px-2.5 py-0.5 rounded-md text-[11px] font-bold text-slate-700 border border-slate-200">
                       SN: {servis.seriNo || 'Belirtilmedi'}
                     </span>
-                    {servis.servisTipi && (
+                    {(servis.servisTuru || servis.servisTipi) && (
                       <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        {servis.servisTipi.replace(/_/g, ' ')}
+                        {getServiceTypeLabel(servis.servisTuru || servis.servisTipi)}
                       </span>
                     )}
                   </div>
@@ -629,7 +630,7 @@ export const ServisFisDetayModal: React.FC<ServisFisDetayModalProps> = ({
                   <span className="font-mono text-slate-800 font-semibold">{formatTRY(araToplam)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>Hesaplanan KDV (%20):</span>
+                  <span>Hesaplanan KDV:</span>
                   <span className="font-mono text-slate-800 font-semibold">{formatTRY(kdvToplam)}</span>
                 </div>
                 <div className="flex justify-between font-extrabold text-slate-950 pt-2 border-t border-slate-200 text-sm items-baseline">

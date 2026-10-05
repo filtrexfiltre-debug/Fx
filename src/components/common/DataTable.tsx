@@ -125,11 +125,11 @@ export function DataTable<T extends { id?: string | number }>({
           <thead>
             <tr className="bg-stone-50 border-bottom border-stone-200">
               {rowSelection?.checkboxes && (
-                <th className="px-4 py-3 w-10">
+                <th className="px-4 py-3 w-10 sticky left-0 bg-stone-50 z-10 border-r border-stone-200/80">
                   {rowSelection.mode === 'multiRow' && (
                     <input
                       type="checkbox"
-                      className="rounded border-stone-300 text-stone-600 focus:ring-stone-500"
+                      className="rounded border-stone-300 text-stone-600 focus:ring-stone-500 cursor-pointer"
                       checked={selectedIds.size > 0 && selectedIds.size === sortedData.length}
                       onChange={toggleSelectAll}
                     />
@@ -167,10 +167,10 @@ export function DataTable<T extends { id?: string | number }>({
                 onClick={() => onRowClick?.(row)}
               >
                 {rowSelection?.checkboxes && (
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-4 py-3 sticky left-0 bg-white group-hover:bg-stone-50 z-10 border-r border-stone-100" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
-                      className="rounded border-stone-300 text-stone-600 focus:ring-stone-500"
+                      className="rounded border-stone-300 text-stone-600 focus:ring-stone-500 cursor-pointer"
                       checked={row.id !== undefined && selectedIds.has(row.id)}
                       onChange={() => row.id !== undefined && toggleSelectRow(row.id)}
                     />

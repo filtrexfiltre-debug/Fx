@@ -24,6 +24,7 @@ import {
   Globe
 } from 'lucide-react';
 import { ServisFisi, ServisFisKalemi } from '../../types';
+import { getServiceTypeLabel } from '../../lib/serviceUtils';
 
 interface ServisFisiYazdirModalProps {
   isOpen: boolean;
@@ -297,7 +298,7 @@ export const ServisFisiYazdirModal: React.FC<ServisFisiYazdirModalProps> = ({
                     </div>
                     <div>
                       <span className="text-slate-400 font-medium text-[11px]">Servis Türü: </span>
-                      <strong className="text-indigo-700">{servis.servisTipi?.replace(/_/g, ' ') || 'Periyodik Bakım'}</strong>
+                      <strong className="text-indigo-700">{getServiceTypeLabel(servis.servisTuru || servis.servisTipi)}</strong>
                     </div>
                   </div>
                   <div className="pt-2 border-t border-slate-200 mt-2 text-[11px]">

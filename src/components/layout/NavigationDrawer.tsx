@@ -54,6 +54,7 @@ interface NavItem {
   shortLabel: string;
   icon: React.ComponentType<{ className?: string }>;
   isSystem?: boolean;
+  children?: { label: string; id?: string; action?: () => void }[];
 }
 
 export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
@@ -85,12 +86,22 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
       label: 'Cari Hesaplar & Müşteri',
       shortLabel: 'Cariler',
       icon: Users,
+      children: [
+        { label: 'Müşteri Listesi' },
+        { label: 'Yeni Cari Kartı' },
+        { label: 'Cari Hareketler' },
+      ],
     },
     {
       id: 'stok',
       label: 'Ürün & Stok & Depo',
       shortLabel: 'Ürün & Stok & Depo',
       icon: Boxes,
+      children: [
+        { label: 'Ürün Listesi' },
+        { label: 'Depo Durumu' },
+        { label: 'Stok Hareketleri' },
+      ],
     },
     {
       id: 'alis-satis',
@@ -115,6 +126,12 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
       label: 'Servisler ve Periyodik Bakımlar',
       shortLabel: 'Servis & Bakım',
       icon: Wrench,
+      children: [
+        { label: 'Bakım Takip (Gantt)' },
+        { label: 'Servis İş Emirleri' },
+        { label: 'Çağrı Kayıtları' },
+        { label: 'Cihaz Envanteri' },
+      ],
     },
     {
       id: 'kasa-banka',
@@ -308,6 +325,26 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       </div>
                     )}
                   </button>
+
+                  {/* Alt Menü Öğeleri (Sadece aktif ve genişletilmiş modda) */}
+                  {isActive && !collapsed && item.children && (
+                    <div className="mt-1 ml-9 flex flex-col gap-0.5 border-l border-slate-800/60 pl-2.5 animate-in slide-in-from-top-1 duration-200">
+                      {item.children.map((child, cIdx) => (
+                        <button
+                          key={cIdx}
+                          type="button"
+                          onClick={() => {
+                            if (child.action) child.action();
+                            else handleItemClick(item.id);
+                          }}
+                          className="w-full text-left py-1.5 px-2 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors cursor-pointer flex items-center justify-between group/sub"
+                        >
+                          <span>{child.label}</span>
+                          <span className="opacity-0 group-hover/sub:opacity-100 transition-opacity text-[9px] text-slate-600">→</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Collapsed Rail Modunda Kayan Modern Tooltip */}
                   {collapsed && !isMobile && hoveredItem === item.id && (

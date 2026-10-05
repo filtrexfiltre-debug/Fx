@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Cpu, Trash2, CheckCircle2, Save } from 'lucide-react';
+import { X, Cpu, Trash2, CheckCircle2, Save, Calendar, RotateCw, Clock, AlertCircle } from 'lucide-react';
 import { Cari, MusteriCihazi } from '../../types';
 import { fxApi, branchContext } from '../../services/api';
 import { Branch } from '../../types/fx';
+import { getServiceTypeLabel } from '../../lib/serviceUtils';
 
 interface CihazTanimModalProps {
   isOpen: boolean;
@@ -66,13 +67,24 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
   const [cihazAdi, setCihazAdi] = useState('');
   const [seriNo, setSeriNo] = useState('');
   const [montajTarihi, setMontajTarihi] = useState(new Date().toISOString().slice(0, 10));
+  const [sonBakimTarihi, setSonBakimTarihi] = useState(new Date().toISOString().slice(0, 10));
   const [bakimPeriyoduAy, setBakimPeriyoduAy] = useState(6);
+  const [gelecekBakimTarihi, setGelecekBakimTarihi] = useState('');
+  const [autoRecalculate, setAutoRecalculate] = useState(true);
   const [servisTuru, setServisTuru] = useState('Periyodik Bakım & Filtre Değişimi');
   const [ozelNotlar, setOzelNotlar] = useState('');
 
   useEffect(() => {
     setBranches(fxApi.getBranches());
   }, []);
+
+  const calculateGelecekBakim = (baseDate: string, periyotAy: number) => {
+    if (!baseDate) return new Date().toISOString().slice(0, 10);
+    const d = new Date(baseDate);
+    if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+    d.setMonth(d.getMonth() + periyotAy);
+    return d.toISOString().slice(0, 10);
+  };
 
   // Sync state with editingCihaz or new device reset whenever modal opens or editingCihaz changes
   useEffect(() => {
@@ -90,9 +102,15 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
       setYetkiliTelefon(editingCihaz.yetkiliTelefon ? formatPhoneNumber(editingCihaz.yetkiliTelefon) : '+90');
       setCihazAdi(editingCihaz.cihazAdi || '');
       setSeriNo(editingCihaz.seriNo || '');
-      setMontajTarihi(editingCihaz.montajTarihi || new Date().toISOString().slice(0, 10));
-      setBakimPeriyoduAy(editingCihaz.bakimPeriyoduAy || 6);
-      setServisTuru(editingCihaz.servisTuru || 'Periyodik Bakım & Filtre Değişimi');
+      const mDate = editingCihaz.montajTarihi || new Date().toISOString().slice(0, 10);
+      const sDate = editingCihaz.sonBakimTarihi || mDate;
+      const pAy = editingCihaz.bakimPeriyoduAy || 6;
+      setMontajTarihi(mDate);
+      setSonBakimTarihi(sDate);
+      setBakimPeriyoduAy(pAy);
+      setGelecekBakimTarihi(editingCihaz.gelecekBakimTarihi || calculateGelecekBakim(sDate, pAy));
+      setAutoRecalculate(true);
+      setServisTuru(getServiceTypeLabel(editingCihaz.servisTuru || 'PERIYODIK_BAKIM'));
       setOzelNotlar(editingCihaz.ozelNotlar || '');
     } else {
       const initialCari = cariler?.[0];
@@ -108,8 +126,12 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
       setYetkiliTelefon(initialCari?.phone ? (formatPhoneNumber(initialCari.phone) || initialCari.phone) : '+90');
       setCihazAdi('');
       setSeriNo('');
-      setMontajTarihi(new Date().toISOString().slice(0, 10));
+      const todayStr = new Date().toISOString().slice(0, 10);
+      setMontajTarihi(todayStr);
+      setSonBakimTarihi(todayStr);
       setBakimPeriyoduAy(6);
+      setGelecekBakimTarihi(calculateGelecekBakim(todayStr, 6));
+      setAutoRecalculate(true);
       setServisTuru('Periyodik Bakım & Filtre Değişimi');
       setOzelNotlar('');
     }
@@ -131,10 +153,40 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
     }
   };
 
-  const calculateGelecekBakim = (montaj: string, periyotAy: number) => {
-    const d = new Date(montaj);
-    d.setMonth(d.getMonth() + periyotAy);
-    return d.toISOString().slice(0, 10);
+  const handleMontajDateChange = (val: string) => {
+    setMontajTarihi(val);
+    if (sonBakimTarihi === montajTarihi || !sonBakimTarihi) {
+      setSonBakimTarihi(val);
+      setGelecekBakimTarihi(calculateGelecekBakim(val, bakimPeriyoduAy));
+      setAutoRecalculate(true);
+    }
+  };
+
+  const handleSonBakimDateChange = (val: string) => {
+    setSonBakimTarihi(val);
+    setGelecekBakimTarihi(calculateGelecekBakim(val, bakimPeriyoduAy));
+    setAutoRecalculate(true);
+  };
+
+  const handlePeriyotChange = (val: number) => {
+    const validVal = Math.max(1, val);
+    setBakimPeriyoduAy(validVal);
+    const base = sonBakimTarihi || montajTarihi || new Date().toISOString().slice(0, 10);
+    setGelecekBakimTarihi(calculateGelecekBakim(base, validVal));
+    setAutoRecalculate(true);
+  };
+
+  const handleForceRecalculate = () => {
+    const base = sonBakimTarihi || montajTarihi || new Date().toISOString().slice(0, 10);
+    setGelecekBakimTarihi(calculateGelecekBakim(base, bakimPeriyoduAy));
+    setAutoRecalculate(true);
+  };
+
+  const handleCompleteMaintenanceToday = () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    setSonBakimTarihi(todayStr);
+    setGelecekBakimTarihi(calculateGelecekBakim(todayStr, bakimPeriyoduAy));
+    setAutoRecalculate(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -144,7 +196,10 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
       return;
     }
 
-    const gelecekTarih = calculateGelecekBakim(montajTarihi, bakimPeriyoduAy);
+    const finalSonBakim = sonBakimTarihi || montajTarihi || new Date().toISOString().slice(0, 10);
+    const finalGelecekBakim = (autoRecalculate || !gelecekBakimTarihi)
+      ? calculateGelecekBakim(finalSonBakim, bakimPeriyoduAy)
+      : gelecekBakimTarihi;
     const branchToSave = selectedBranchId || (selectedCari?.branchId || branches[0]?.id || 'b1111111-1111-1111-1111-111111111111');
 
     onKaydetCihaz({
@@ -161,12 +216,12 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
       seriNo: seriNo || (editingCihaz?.seriNo ? editingCihaz.seriNo : `SN-${Date.now().toString().slice(-6)}`),
       montajTarihi,
       bakimPeriyoduAy,
-      sonBakimTarihi: editingCihaz?.sonBakimTarihi || montajTarihi,
-      gelecekBakimTarihi: editingCihaz?.gelecekBakimTarihi || gelecekTarih,
+      sonBakimTarihi: finalSonBakim,
+      gelecekBakimTarihi: finalGelecekBakim,
       durum: editingCihaz?.durum || 'AKTIF',
       ozelNotlar,
       branchId: branchToSave,
-      servisTuru
+      servisTuru: getServiceTypeLabel(servisTuru)
     }, editingCihaz?.id);
 
     onClose();
@@ -384,12 +439,35 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
                 <input
                   type="date"
                   value={montajTarihi}
-                  onChange={e => setMontajTarihi(e.target.value)}
+                  onChange={e => handleMontajDateChange(e.target.value)}
                   required
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-sm focus:border-indigo-500 focus:outline-none"
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 flex items-center justify-between">
+                  <span>Son Yapılan Bakım Tarihi *</span>
+                  <button
+                    type="button"
+                    onClick={handleCompleteMaintenanceToday}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-700 font-bold cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-200 transition-colors"
+                    title="Son bakımı bugünün tarihi olarak ayarlar ve bir sonraki bakım tarihini periyoda göre anında yeniler"
+                  >
+                    Bugün Yapıldı & Yenile
+                  </button>
+                </label>
+                <input
+                  type="date"
+                  value={sonBakimTarihi}
+                  onChange={e => handleSonBakimDateChange(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                   Periyodik Bakım Aralığı (Ay) *
@@ -400,7 +478,7 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
                     min={1}
                     max={120}
                     value={bakimPeriyoduAy}
-                    onChange={e => setBakimPeriyoduAy(Math.max(1, Number(e.target.value) || 1))}
+                    onChange={e => handlePeriyotChange(Number(e.target.value) || 1)}
                     required
                     placeholder="Örn: 6, 10, 12"
                     className="w-full pl-3.5 pr-20 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-sm focus:border-indigo-500 focus:outline-none font-bold"
@@ -409,6 +487,45 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
                   <div className="absolute right-3 pointer-events-none text-xs text-slate-500 font-bold bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
                     Ayda Bir
                   </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-600">
+                    Gelecek Bakım Tarihi *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleForceRecalculate}
+                    className="inline-flex items-center gap-1 text-[10px] text-indigo-600 hover:text-indigo-700 font-bold cursor-pointer"
+                    title="Son bakım tarihi + periyoda göre yeniden hesapla"
+                  >
+                    <RotateCw className="w-3 h-3" />
+                    <span>Yeniden Hesapla</span>
+                  </button>
+                </div>
+                <input
+                  type="date"
+                  value={gelecekBakimTarihi}
+                  onChange={e => {
+                    setGelecekBakimTarihi(e.target.value);
+                    setAutoRecalculate(false);
+                  }}
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-indigo-50/50 border border-indigo-200 text-indigo-950 text-sm font-bold focus:border-indigo-500 focus:outline-none"
+                />
+                <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500 font-medium">
+                  <span>Hesaplanan: {calculateGelecekBakim(sonBakimTarihi || montajTarihi, bakimPeriyoduAy)}</span>
+                  {!autoRecalculate && (
+                    <button
+                      type="button"
+                      onClick={handleForceRecalculate}
+                      className="text-indigo-600 hover:underline font-bold"
+                    >
+                      Otomatik Eşitle
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -424,7 +541,8 @@ export const CihazTanimModal: React.FC<CihazTanimModalProps> = ({
                 className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-sm focus:border-indigo-500 focus:outline-none font-medium cursor-pointer"
               >
                 <option value="Periyodik Bakım & Filtre Değişimi">Periyodik Bakım & Filtre Değişimi</option>
-                <option value="Arıza & Onarım">Arıza & Onarım (Şikayet / Tamir)</option>
+                <option value="Filtre Değişimi">Filtre Değişimi</option>
+                <option value="Arıza & Onarım">Arıza & Onarım</option>
                 <option value="Montaj & Yeni Kurulum">Montaj & Yeni Kurulum</option>
                 <option value="Keşif & Su Analizi">Keşif & Su Analizi</option>
               </select>

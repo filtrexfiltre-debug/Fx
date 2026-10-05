@@ -5,15 +5,21 @@ import React, {
   useRef,
 } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { appTheme } from '../../lib/agGridTheme';
 import { AG_GRID_LOCALE_TR } from '../../lib/agGridLocaleTR';
 import {
   ColDef,
   ICellRendererParams,
+  ModuleRegistry,
+  AllCommunityModule,
+  ValidationModule,
+  themeQuartz,
   GridReadyEvent,
   GridApi,
   RowSelectionOptions,
 } from 'ag-grid-community';
+
+// AG Grid modüllerini kaydet
+ModuleRegistry.registerModules([AllCommunityModule, ValidationModule]);
 import {
   Search,
   UserPlus,
@@ -617,7 +623,6 @@ export const MusteriListesi: React.FC = () => {
         headerName: 'Cari Kodu',
         minWidth: 125,
         width: 135,
-        pinned: 'left',
         cellRenderer: (params: ICellRendererParams<Contact>) => {
           const data = params.data;
           const code = data?.code || '-';
@@ -653,7 +658,6 @@ export const MusteriListesi: React.FC = () => {
         headerName: 'Cari Ünvan & Yetkili',
         minWidth: 260,
         flex: 1.5,
-        pinned: 'left',
         cellRenderer: (params: ICellRendererParams<Contact>) => {
           const data = params.data;
           if (!data) return null;
@@ -975,29 +979,40 @@ export const MusteriListesi: React.FC = () => {
 
   const rowSelection = useMemo<RowSelectionOptions<Contact>>(
     () => ({
-      mode: 'singleRow',
-      checkboxes: false,
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
       enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
     }),
     []
   );
 
   const onGridReady = React.useCallback((params: GridReadyEvent<Contact>) => {
     setGridApi(params.api);
-    const savedState = localStorage.getItem(GRID_STORAGE_KEY);
-    if (savedState) {
-      try {
-        const state = JSON.parse(savedState);
-        const sanitizedState = state.map((col: any) => {
-          const cleanCol = { ...col };
-          delete cleanCol.checkboxSelection;
-          delete cleanCol.headerCheckboxSelection;
-          return cleanCol;
+    try {
+      const saved = localStorage.getItem(GRID_STORAGE_KEY);
+      if (saved) {
+        const state = JSON.parse(saved);
+        const adjustedState = state.map((col: any) => {
+          if (col.colId === 'code' || col.colId === 'title' || col.colId === 'contactTypeId') {
+            return { ...col, pinned: null };
+          }
+          return col;
         });
-        params.api.applyColumnState({ state: sanitizedState, applyOrder: true });
-      } catch (e) {
-        console.error('Kolon durumu yüklenirken hata oluştu:', e);
+        params.api.applyColumnState({ state: adjustedState, applyOrder: true });
       }
+    } catch (e) {
+      console.warn('Could not restore column state:', e);
     }
   }, []);
 
@@ -1290,15 +1305,6 @@ export const MusteriListesi: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 rounded-md transition-colors"
-            >
-              <Download className="w-3.5 h-3.5 text-blue-600" />
-              CSV
-            </button>
-
-            <button
-              type="button"
               onClick={handleExportPdf}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 rounded-md transition-colors"
             >
@@ -1339,7 +1345,7 @@ export const MusteriListesi: React.FC = () => {
         <div className={`bg-white border border-stone-200/90 rounded-lg shadow-xs overflow-hidden transition-all duration-300 ${isSidebarOpen ? 'flex-1' : 'w-full'}`}>
           <div className="w-full" style={{ height: '560px', width: '100%' }}>
             <AgGridReact<Contact>
-              theme={appTheme}
+              theme={themeQuartz}
               ref={gridRef}
               localeText={AG_GRID_LOCALE_TR}
               rowData={filteredData}

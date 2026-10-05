@@ -55,22 +55,33 @@ export interface Cari {
 export interface Stok {
   id: string;
   code: string;
+  skuCode?: string;
   name: string;
   category: string;
+  categoryGroup?: string;
   unit: string;
+  unitType?: string;
   barcode: string;
-  costMethod: string;
+  barcodeEan13?: string;
+  costMethod?: string;
   buyPrice: number;
+  purchasePrice?: number;
   sellPrice: number;
+  sellingPrice?: number;
+  salePrice?: number;
+  salePriceExclVat?: number;
+  salePriceInclVat?: number;
   vatRate: number;
+  vatRatePercent?: number;
   currency: string;
   currentQuantity: number;
+  currentStock?: number;
+  openingStockQuantity?: number;
   criticalQuantity: number;
   warehouseLocation: string;
   brand: string;
+  brandName?: string;
   isActive: boolean;
-  sellingPrice?: number;
-  currentStock?: number;
 }
 
 export interface Personel {
@@ -170,6 +181,7 @@ export interface ServisFisi {
   kalemler: ServisFisKalemi[];
   createdAt: string;
   servisTipi?: string;
+  servisTuru?: string;
   cihazKaynagi?: string;
   bildirilenAriza?: string;
   teknisyenNotu?: string;
@@ -225,3 +237,53 @@ export interface UnifiedServisBakimItem {
   rawCihaz?: MusteriCihazi;
   branchId?: string; // Multi-branch support
 }
+
+// ============= API ERROR TYPES =============
+
+export enum ApiErrorCode {
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  FORBIDDEN = 'FORBIDDEN',
+  NOT_FOUND = 'NOT_FOUND',
+  BAD_REQUEST = 'BAD_REQUEST',
+  SERVER_ERROR = 'SERVER_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export class ApiError extends Error {
+  public code: ApiErrorCode | string;
+  public status: number;
+  public override message: string;
+  public details?: unknown;
+
+  constructor(
+    param1: number | ApiErrorCode | string,
+    param2: string | number,
+    param3?: string,
+    param4?: unknown
+  ) {
+    if (typeof param1 === 'number') {
+      // Signature: (status, message, code?, details?)
+      const status = param1;
+      const message = String(param2);
+      const code = param3 || (status >= 500 ? ApiErrorCode.SERVER_ERROR : status === 401 ? ApiErrorCode.UNAUTHORIZED : status === 403 ? ApiErrorCode.FORBIDDEN : status === 404 ? ApiErrorCode.NOT_FOUND : ApiErrorCode.UNKNOWN);
+      super(message);
+      this.status = status;
+      this.message = message;
+      this.code = code;
+      this.details = param4;
+    } else {
+      // Signature: (code, status, message, details?)
+      const code = param1;
+      const status = typeof param2 === 'number' ? param2 : 500;
+      const message = param3 || 'Bir hata oluştu';
+      super(message);
+      this.code = code;
+      this.status = status;
+      this.message = message;
+      this.details = param4;
+    }
+    this.name = 'ApiError';
+  }
+}
+

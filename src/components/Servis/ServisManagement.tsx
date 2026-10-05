@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Wrench, 
   Plus, 
@@ -19,8 +19,20 @@ import {
   TrendingUp,
   Search,
   Send,
-  Edit2
+  Edit2,
+  RotateCcw
 } from 'lucide-react';
+import { AgGridReact } from 'ag-grid-react';
+import { appTheme } from '../../lib/agGridTheme';
+import { AG_GRID_LOCALE_TR } from '../../lib/agGridLocaleTR';
+import {
+  ColDef,
+  ICellRendererParams,
+  GridReadyEvent,
+  GridApi,
+  RowSelectionOptions,
+} from 'ag-grid-community';
+import { AgGridColumnSidebar, AgGridSidebarToggleBtn } from '../common/AgGridColumnSidebar';
 import { 
   Cari, 
   MusteriCihazi, 
@@ -34,8 +46,15 @@ import {
   ServisFisKalemi
 } from '../../types';
 import { fxApi, branchContext } from '../../services/api';
-import { Branch, Contact, Employee } from '../../types/fx';
+import { Branch, Contact, Employee, Product } from '../../types/fx';
 import { TURKEY_CITIES } from '../../data/mockData';
+import {
+  normalizeServiceType,
+  getServiceTypeLabel,
+  isServiceTypeMatch,
+  SERVIS_TIPI_COLORS,
+  SERVIS_TIPI_LABELS,
+} from '../../lib/serviceUtils';
 
 // Sub-components
 import { AgDataGrid } from '../common/AgDataGrid';
@@ -324,6 +343,45 @@ const mapEmployeeToPersonel = (e: Employee): Personel => {
   };
 };
 
+const mapProductToStok = (p: Product): Stok => {
+  const sPrice = p.salePriceExclVat ?? p.salePrice ?? p.sellPrice ?? 0;
+  const bPrice = p.purchasePrice ?? p.buyPrice ?? p.netPurchaseCost ?? 0;
+  const vRate = p.vatRatePercent !== undefined ? p.vatRatePercent : (p.vatRate !== undefined ? p.vatRate : 20);
+  const qty = p.currentStock ?? p.currentQuantity ?? p.openingStockQuantity ?? 50;
+
+  return {
+    id: p.id,
+    code: p.skuCode || p.code || '',
+    skuCode: p.skuCode || p.code || '',
+    name: p.name,
+    category: p.categoryGroup || p.category || '',
+    categoryGroup: p.categoryGroup || p.category || '',
+    unit: p.unitType || p.unit || 'Adet',
+    unitType: p.unitType || p.unit || 'Adet',
+    barcode: p.barcodeEan13 || p.barcode || '',
+    barcodeEan13: p.barcodeEan13 || p.barcode || '',
+    costMethod: 'FIFO',
+    buyPrice: bPrice,
+    purchasePrice: bPrice,
+    sellPrice: sPrice,
+    sellingPrice: sPrice,
+    salePrice: sPrice,
+    salePriceExclVat: sPrice,
+    salePriceInclVat: p.salePriceInclVat || (sPrice * (1 + vRate / 100)),
+    vatRate: vRate,
+    vatRatePercent: vRate,
+    currency: p.currency || 'TRY',
+    currentQuantity: qty,
+    currentStock: qty,
+    openingStockQuantity: p.openingStockQuantity ?? qty,
+    criticalQuantity: 5,
+    warehouseLocation: 'Merkez',
+    brand: p.brandName || p.brand || '',
+    brandName: p.brandName || p.brand || '',
+    isActive: p.isActive ?? true
+  };
+};
+
 export function ServisManagement() {
   const [activeTab, setActiveTab] = useState<'isEmirleri' | 'bakimGantt' | 'cihazRegistry' | 'cagriMerkezi' | 'bildirimLogs' | 'analitik'>('bakimGantt');
 
@@ -379,6 +437,16 @@ export function ServisManagement() {
   const [cagriMerkeziSearchTerm, setCagriMerkeziSearchTerm] = useState('');
   const [isModalCreateEmpty, setIsModalCreateEmpty] = useState(false);
 
+  // AG Grid States for Servisler Listesi
+  const [servisGridApi, setServisGridApi] = useState<GridApi<ServisFisi> | null>(null);
+  const servisGridRef = useRef<AgGridReact<ServisFisi>>(null);
+  const [isServisSidebarOpen, setIsServisSidebarOpen] = useState<boolean>(false);
+  const servisSidebarButtonRef = useRef<HTMLButtonElement>(null);
+  const [servisSearchText, setServisSearchText] = useState<string>('');
+  const [servisDurumFilter, setServisDurumFilter] = useState<string>('ALL');
+  const [servisTuruFilter, setServisTuruFilter] = useState<string>('ALL');
+  const [servisTeknisyenFilter, setServisTeknisyenFilter] = useState<string>('ALL');
+
   // Initial loads and subscriptions
   useEffect(() => {
     // 1. Fetch static or dynamic lists
@@ -402,23 +470,7 @@ export function ServisManagement() {
     try {
       const storedProducts = localStorage.getItem('fx_products_list');
       if (storedProducts) {
-        const parsed: Stok[] = JSON.parse(storedProducts).map((p: any) => ({
-          id: p.id,
-          code: p.skuCode || p.code,
-          name: p.name,
-          category: p.categoryGroup || p.category,
-          unit: p.unitType || p.unit,
-          barcode: p.barcodeEan13 || p.barcode || '',
-          buyPrice: p.purchasePrice || p.buyPrice || 0,
-          sellPrice: p.salePriceExclVat || p.sellPrice || 0,
-          vatRate: p.vatRatePercent || p.vatRate || 20,
-          currency: 'TRY',
-          currentQuantity: p.currentStock || p.currentQuantity || 50,
-          criticalQuantity: p.criticalStock || p.criticalQuantity || 5,
-          warehouseLocation: p.warehouseLocation || 'Saha Aracı Raf 2',
-          brand: p.brandName || p.brand || 'Filtrex',
-          isActive: true
-        }));
+        const parsed: Stok[] = JSON.parse(storedProducts).map((p: any) => mapProductToStok(p));
         setStoklar(parsed);
       } else {
         setStoklar([
@@ -482,25 +534,26 @@ export function ServisManagement() {
       // Ignored
     }
 
-    // 2. Load Core Servis Datasets from Storage or Seed
-    const loadFromStorage = <T,>(key: string, defaultVal: T[]): T[] => {
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        try {
-          return JSON.parse(stored);
-        } catch {
-          return defaultVal;
-        }
-      } else {
-        localStorage.setItem(key, JSON.stringify(defaultVal));
-        return defaultVal;
+    // 2. Load Core Servis Datasets from API
+    const loadCoreData = async () => {
+      try {
+        const [servisRes, cihazRes, cagriRes, notifRes] = await Promise.all([
+          fxApi.getServiceTickets(),
+          fxApi.getDevices(),
+          fxApi.getCallRecords(),
+          fxApi.getNotifications()
+        ]);
+
+        if (servisRes.success) setServisFisleri(servisRes.data.length > 0 ? servisRes.data : DEFAULT_SERVIS_FISLERI);
+        if (cihazRes.success) setCihazlar(cihazRes.data.length > 0 ? cihazRes.data : DEFAULT_CIHAZLAR);
+        if (cagriRes.success) setCagriKayitlari(cagriRes.data.length > 0 ? cagriRes.data : DEFAULT_CAGRI_KAYITLARI);
+        if (notifRes.success) setBildirimler(notifRes.data.length > 0 ? notifRes.data : DEFAULT_BILDIRIMLER);
+      } catch (err) {
+        console.error('Servis verileri yüklenemedi:', err);
       }
     };
 
-    setServisFisleri(loadFromStorage(STORAGE_KEYS.SERVIS_FISLERI, DEFAULT_SERVIS_FISLERI));
-    setCihazlar(loadFromStorage(STORAGE_KEYS.CIHAZLAR, DEFAULT_CIHAZLAR));
-    setCagriKayitlari(loadFromStorage(STORAGE_KEYS.CAGRI_KAYITLARI, DEFAULT_CAGRI_KAYITLARI));
-    setBildirimler(loadFromStorage(STORAGE_KEYS.BILDIRIMLER, DEFAULT_BILDIRIMLER));
+    loadCoreData();
 
     // Subscribe to branch context changes
     const unsubscribe = branchContext.subscribe(() => {
@@ -525,6 +578,44 @@ export function ServisManagement() {
     if (selectedBranchId === 'all') return servisFisleri;
     return servisFisleri.filter(s => s.branchId === selectedBranchId);
   }, [servisFisleri, selectedBranchId]);
+
+  const distinctTeknisyenler = useMemo(() => {
+    const map = new Map<string, string>();
+    filteredServisler.forEach(s => {
+      if (s.atananTeknisyenAdi) {
+        map.set(s.atananTeknisyenAdi, s.atananTeknisyenAdi);
+      }
+    });
+    return Array.from(map.values()).sort();
+  }, [filteredServisler]);
+
+  const filteredServislerForGrid = useMemo(() => {
+    let result = filteredServisler;
+    if (servisDurumFilter !== 'ALL') {
+      result = result.filter(s => s.durum === servisDurumFilter);
+    }
+    if (servisTuruFilter !== 'ALL') {
+      result = result.filter(s => isServiceTypeMatch(s.servisTuru || s.servisTipi, servisTuruFilter));
+    }
+    if (servisTeknisyenFilter !== 'ALL') {
+      result = result.filter(s => s.atananTeknisyenAdi === servisTeknisyenFilter || s.atananTeknisyenId === servisTeknisyenFilter);
+    }
+    if (servisSearchText.trim()) {
+      const q = servisSearchText.trim().toLowerCase();
+      result = result.filter(s => 
+        (s.servisNo && s.servisNo.toLowerCase().includes(q)) ||
+        (s.cariTitle && s.cariTitle.toLowerCase().includes(q)) ||
+        (s.cihazAdi && s.cihazAdi.toLowerCase().includes(q)) ||
+        (s.seriNo && s.seriNo.toLowerCase().includes(q)) ||
+        (s.atananTeknisyenAdi && s.atananTeknisyenAdi.toLowerCase().includes(q)) ||
+        (s.telefon && s.telefon.includes(q)) ||
+        (s.ilce && s.ilce.toLowerCase().includes(q)) ||
+        (s.bildirilenAriza && s.bildirilenAriza.toLowerCase().includes(q)) ||
+        (s.teknisyenNotu && s.teknisyenNotu.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [filteredServisler, servisDurumFilter, servisTuruFilter, servisTeknisyenFilter, servisSearchText]);
 
   const filteredCihazlar = useMemo(() => {
     if (selectedBranchId === 'all') return cihazlar;
@@ -602,247 +693,70 @@ export function ServisManagement() {
     };
   }, [filteredServisler, filteredCihazlar, filteredCagriKayitlari, filteredBildirimler]);
 
-  // Handler: Save / Update Service Ticket from Ariza/Tesisat Modal
-  const handleKaydetYeniServis = (
+  // Handler: Save / Update Service Ticket from Ariza/Tesisat Modal (Integrated)
+  // Handler: Save / Update Service Ticket from Ariza/Tesisat Modal (Atomic Transaction)
+  const handleKaydetYeniServis = async (
     yeniServis: Omit<ServisFisi, 'id'>, 
     yeniCihazKaydi?: Omit<MusteriCihazi, 'id'>,
     yeniBildirim?: Omit<ServisBildirim, 'id'>,
     yeniCariKaydi?: Omit<Cari, 'id'>,
     yeniStokKaydi?: Omit<Stok, 'id'>,
     guncellenenCari?: Partial<Cari> & { id: string },
-    editServisId?: string
+    editServisId?: string,
+    guncellenenCihaz?: Partial<MusteriCihazi> & { id: string }
   ) => {
-    const activeBranchToSet = yeniServis.branchId || (selectedBranchId === 'all' ? (branches[0]?.id || 'b1111111-1111-1111-1111-111111111111') : selectedBranchId);
-    
-    // If we have a new Cari record
-    let finalCariId = yeniServis.cariId;
-    let finalCariTitle = yeniServis.cariTitle;
-    if (yeniCariKaydi) {
-      const createdCari: Cari = {
-        ...yeniCariKaydi,
-        id: `c-new-${Date.now()}`,
-        branchId: activeBranchToSet,
-        createdAt: new Date().toISOString()
-      };
-      const updatedCariler = [createdCari, ...cariler];
-      setCariler(updatedCariler);
-      finalCariId = createdCari.id;
-      finalCariTitle = createdCari.title;
-      // Persist new contact to global ERP database too!
-      fxApi.createContact({
-        contactTypeId: 'c-type-customer',
-        code: yeniCariKaydi.code || `C-${Date.now().toString().slice(-6)}`,
-        status: 'ACTIVE',
-        title: yeniCariKaydi.title || 'Yeni Cari',
-        mobilePhone1: yeniCariKaydi.phone || '+90 (532) 000 00 00',
-        mobilePhone2: yeniCariKaydi.phone2 || '',
-        homePhone: yeniCariKaydi.homePhone || '',
-        workPhone: yeniCariKaydi.workPhone || '',
-        branchId: activeBranchToSet,
-        openingBalance: 0,
-        currentBalance: 0,
-        currency: 'TRY',
-        creditRiskLimit: 50000,
-        defaultPaymentTermsDays: 14,
-        defaultDiscountAmount: 0,
-        isEinvoiceTaxpayer: false,
-        authorizedPerson: yeniCariKaydi.authorizedPerson || '',
-        notes: yeniCariKaydi.notes || '',
-        districtId: yeniCariKaydi.district || '',
-        neighborhoodId: yeniCariKaydi.neighborhood || '',
-        formattedAddress: yeniCariKaydi.address || ''
-      });
-    } else if (guncellenenCari) {
-      // Update existing customer in state & API
-      const updatedCariler = cariler.map(c => c.id === guncellenenCari.id ? { ...c, ...guncellenenCari } : c);
-      setCariler(updatedCariler);
-      try {
-        fxApi.updateContact(guncellenenCari.id, {
-          title: guncellenenCari.title,
-          authorizedPerson: guncellenenCari.authorizedPerson,
-          mobilePhone1: guncellenenCari.phone,
-          mobilePhone2: guncellenenCari.phone2,
-          homePhone: guncellenenCari.homePhone,
-          workPhone: guncellenenCari.workPhone,
-          districtId: guncellenenCari.district,
-          neighborhoodId: guncellenenCari.neighborhood,
-          formattedAddress: guncellenenCari.address
-        });
-      } catch (err) {
-        console.error('Error updating contact:', err);
-      }
-    }
+    try {
+      const activeBranchToSet = yeniServis.branchId || (selectedBranchId === 'all' ? (branches[0]?.id || 'b1111111-1111-1111-1111-111111111111') : selectedBranchId);
 
-    // Save inline stock product if requested
-    if (yeniStokKaydi) {
-      const createdStock: Stok = {
-        ...yeniStokKaydi,
-        id: `stok-${Date.now()}`
-      };
-      const updatedStoklar = [createdStock, ...stoklar];
-      setStoklar(updatedStoklar);
-      try {
-        const storedProducts = localStorage.getItem('fx_products_list');
-        const parsed = storedProducts ? JSON.parse(storedProducts) : [];
-        const newProductForErp = {
-          id: createdStock.id,
-          skuCode: createdStock.code,
-          name: createdStock.name,
-          categoryGroup: createdStock.category,
-          unitType: createdStock.unit,
-          barcodeEan13: createdStock.barcode,
-          purchasePrice: createdStock.buyPrice,
-          salePriceExclVat: createdStock.sellPrice,
-          vatRatePercent: createdStock.vatRate,
-          currentStock: createdStock.currentQuantity,
-          criticalStock: createdStock.criticalQuantity,
-          warehouseLocation: createdStock.warehouseLocation,
-          brandName: createdStock.brand,
-          isActive: true
-        };
-        localStorage.setItem('fx_products_list', JSON.stringify([newProductForErp, ...parsed]));
-      } catch (e) {
-        console.error('Error saving new inline product:', e);
-      }
-    }
-
-    // If we have a new customer device registry
-    let finalCihazId = yeniServis.cihazId;
-    if (yeniCihazKaydi) {
-      const createdCihaz: MusteriCihazi = {
-        ...yeniCihazKaydi,
-        id: `cihaz-${Date.now()}`,
-        cariId: finalCariId,
-        cariTitle: finalCariTitle,
+      const res = await fxApi.saveServiceTransaction({
+        serviceData: { ...yeniServis, branchId: activeBranchToSet },
+        editServisId,
+        newDeviceData: yeniCihazKaydi ? { ...yeniCihazKaydi, branchId: activeBranchToSet } : undefined,
+        updatedDeviceData: guncellenenCihaz,
+        newContactData: yeniCariKaydi ? { ...yeniCariKaydi, branchId: activeBranchToSet } : undefined,
+        updatedContactData: guncellenenCari,
+        newProductData: yeniStokKaydi ? {
+          code: yeniStokKaydi.code,
+          name: yeniStokKaydi.name,
+          unit: yeniStokKaydi.unit,
+          buyPrice: yeniStokKaydi.buyPrice,
+          sellPrice: yeniStokKaydi.sellPrice,
+          vatRate: yeniStokKaydi.vatRate
+        } : undefined,
+        notificationData: yeniBildirim ? { ...yeniBildirim, branchId: activeBranchToSet } : undefined,
         branchId: activeBranchToSet
-      };
-      const updatedCihazlar = [createdCihaz, ...cihazlar];
-      setCihazlar(updatedCihazlar);
-      updateStorage(STORAGE_KEYS.CIHAZLAR, updatedCihazlar);
-      finalCihazId = createdCihaz.id;
-    } else if (finalCihazId) {
-      // Sync contact and address on existing device if needed
-      const existingIdx = cihazlar.findIndex(c => c.id === finalCihazId);
-      if (existingIdx !== -1) {
-        const updated = [...cihazlar];
-        const datePart = yeniServis.randevuTarihi.slice(0, 10);
-        const isBakim = yeniServis.servisTipi === 'PERIYODIK_BAKIM' || yeniServis.servisTipi === 'FILTRE_DEGISIMI';
-
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          yetkiliKisi: yeniServis.yetkili || updated[existingIdx].yetkiliKisi,
-          yetkiliTelefon: yeniServis.telefon || updated[existingIdx].yetkiliTelefon,
-          acikAdres: yeniServis.acikAdres || updated[existingIdx].acikAdres,
-          il: yeniServis.il || updated[existingIdx].il,
-          ilce: yeniServis.ilce || updated[existingIdx].ilce,
-          mahalle: yeniServis.mahalle || updated[existingIdx].mahalle,
-          // INTEGRATION: Automatically sync the service type and next maintenance target date on the device registry
-          servisTuru: yeniServis.servisTipi === 'PERIYODIK_BAKIM' ? 'Periyodik Bakım' : yeniServis.servisTipi === 'FILTRE_DEGISIMI' ? 'Filtre Değişimi' : 'Arıza Onarım',
-          gelecekBakimTarihi: isBakim ? datePart : updated[existingIdx].gelecekBakimTarihi
-        };
-        setCihazlar(updated);
-        updateStorage(STORAGE_KEYS.CIHAZLAR, updated);
-      }
-    }
-
-    // Create or Update Service Record
-    if (editServisId) {
-      const updatedServisler = servisFisleri.map(s => {
-        if (s.id === editServisId) {
-          return {
-            ...s,
-            ...yeniServis,
-            id: editServisId,
-            cariId: finalCariId,
-            cariTitle: finalCariTitle,
-            cihazId: finalCihazId || s.cihazId,
-            servisNo: s.servisNo || yeniServis.servisNo,
-            branchId: activeBranchToSet,
-            kalemler: s.kalemler || [],
-            durum: s.durum || yeniServis.durum
-          };
-        }
-        return s;
       });
-      setServisFisleri(updatedServisler);
-      updateStorage(STORAGE_KEYS.SERVIS_FISLERI, updatedServisler);
-    } else {
-      // MÜKERRER KAYIT ÖNLEME: Bu cihaza ait zaten açık bir servis fişi var mı?
-      const existingOpenSlip = finalCihazId 
-        ? servisFisleri.find(s => s.cihazId === finalCihazId && (s.durum === 'RANDEVU_PLANLANDI' || s.durum === 'YOLDA_SAHADA' || s.durum === 'BEKLEMEDE'))
-        : null;
 
-      if (existingOpenSlip) {
-        // Mükerrer kayıt açmak yerine mevcut açık servis fişini güncelle!
-        const updatedServisler = servisFisleri.map(s => {
-          if (s.id === existingOpenSlip.id) {
-            return {
-              ...s,
-              ...yeniServis,
-              id: existingOpenSlip.id,
-              servisNo: existingOpenSlip.servisNo, // Mevcut servis numarasını koru
-              cariId: finalCariId,
-              cariTitle: finalCariTitle,
-              cihazId: finalCihazId,
-              branchId: activeBranchToSet
-            };
-          }
-          return s;
-        });
-        setServisFisleri(updatedServisler);
-        updateStorage(STORAGE_KEYS.SERVIS_FISLERI, updatedServisler);
-      } else {
-        const sId = `srv-${Date.now()}`;
-        const newServiceRecord: ServisFisi = {
-          ...yeniServis,
-          id: sId,
-          cariId: finalCariId,
-          cariTitle: finalCariTitle,
-          cihazId: finalCihazId,
-          servisNo: `SRV-2026-${String(servisFisleri.length + 1).padStart(4, '0')}`,
-          branchId: activeBranchToSet,
-          createdAt: new Date().toISOString()
-        };
-
-        const updatedServisler = [newServiceRecord, ...servisFisleri];
-        setServisFisleri(updatedServisler);
-        updateStorage(STORAGE_KEYS.SERVIS_FISLERI, updatedServisler);
-
-        // Save optional Notification
-        if (yeniBildirim) {
-          const createdNotification: ServisBildirim = {
-            ...yeniBildirim,
-            id: `notif-${Date.now()}`,
-            servisId: sId,
-            servisNo: newServiceRecord.servisNo,
-            cariId: finalCariId,
-            cariTitle: finalCariTitle,
-            cihazId: finalCihazId,
-            cihazAdi: yeniServis.cihazAdi,
-            branchId: activeBranchToSet,
-            olusturmaTarihi: new Date().toISOString()
-          };
-          const updatedBildirimler = [createdNotification, ...bildirimler];
-          setBildirimler(updatedBildirimler);
-          updateStorage(STORAGE_KEYS.BILDIRIMLER, updatedBildirimler);
-        }
+      if (!res.success) {
+        throw new Error(res.message || 'Servis ve bağlı kayıtlar kaydedilemedi.');
       }
-    }
 
-    // Auto-switch parent's branch view if different from the saved service branch to ensure instant visibility!
-    if (activeBranchToSet && selectedBranchId !== 'all' && selectedBranchId !== activeBranchToSet) {
-      setSelectedBranchId(activeBranchToSet);
-      branchContext.setSelectedBranchId(activeBranchToSet);
-    }
+      // Reload all related states atomically
+      const [sRes, cRes, dRes, nRes, stRes] = await Promise.all([
+        fxApi.getServiceTickets(),
+        fxApi.getContacts(),
+        fxApi.getDevices(),
+        fxApi.getNotifications(),
+        fxApi.getProducts()
+      ]);
 
-    setIsYeniServisOpen(false);
-    setEditingServis(null);
-    setSelectedCihaz(null);
-    setActiveTab('isEmirleri'); // Auto-switch to Job Cards tab so they see it instantly!
+      if (sRes.success) setServisFisleri(sRes.data);
+      if (cRes.success) setCariler(cRes.data.map(mapContactToCari));
+      if (dRes.success) setCihazlar(dRes.data);
+      if (nRes.success) setBildirimler(nRes.data);
+      if (stRes.success) setStoklar(stRes.data.map(mapProductToStok));
+
+      setIsYeniServisOpen(false);
+      setEditingServis(null);
+      setSelectedCihaz(null);
+    } catch (err) {
+      alert('Servis ve bağlı kayıtlar kaydedilirken hata oluştu (Tüm işlemler geri alındı): ' + (err instanceof Error ? err.message : 'Bilinmeyen hata'));
+      throw err;
+    }
   };
 
-  // Handler: Close/Complete Service Ticket & deduct stock/post payment
-  const handleKapatServis = (
+  // Handler: Close/Complete Service Ticket & deduct stock/post payment (Atomic Integration)
+  const handleKapatServis = async (
     servisId: string, 
     data: {
       kalemler: ServisFisKalemi[];
@@ -853,148 +767,101 @@ export function ServisManagement() {
       musteriImza?: boolean;
     }
   ) => {
-    const updated = servisFisleri.map(s => {
-      if (s.id === servisId) {
-        const matchingKasa = kasalar.find(k => k.id === data.kasaId);
-        return {
-          ...s,
-          ...data,
-          kasaAdi: matchingKasa?.name || 'Saha Kasası',
-          durum: 'TAMAMLANDI_KAPATILDI'
-        };
+    try {
+      const res = await fxApi.completeService(servisId, data);
+      if (res.success) {
+        // Refresh All Related States for instant UI updates (services, stock, cash/bank, and devices)
+        const [sRes, stRes, kRes, dRes] = await Promise.all([
+          fxApi.getServiceTickets(),
+          fxApi.getProducts(), // To refresh stock quantities
+          fxApi.getCashBanks(), // To refresh balances
+          fxApi.getDevices() // To refresh device maintenance dates (sonBakimTarihi, gelecekBakimTarihi)
+        ]);
+        
+        if (sRes.success) setServisFisleri(sRes.data);
+        if (stRes.success) setStoklar(stRes.data.map(mapProductToStok));
+        if (kRes.success) setKasalar(kRes.data);
+        if (dRes.success) setCihazlar(dRes.data);
+        
+        setIsServisDetayOpen(false);
+        setSelectedServis(null);
       }
-      return s;
-    });
-
-    setServisFisleri(updated);
-    updateStorage(STORAGE_KEYS.SERVIS_FISLERI, updated);
-
-    // Process payment integration to main bank accounts if CASH or ACIK HESAP
-    const closedServis = servisFisleri.find(s => s.id === servisId);
-    if (closedServis && data.tahsilatTutari > 0) {
-      // Post financial movement to KasaBanka via mock updates
-      const activeKasaId = data.kasaId || kasalar[0]?.id;
-      if (activeKasaId) {
-        const kIndex = kasalar.findIndex(k => k.id === activeKasaId);
-        if (kIndex !== -1) {
-          const updatedKasalar = [...kasalar];
-          updatedKasalar[kIndex] = {
-            ...updatedKasalar[kIndex],
-            balance: updatedKasalar[kIndex].balance + data.tahsilatTutari
-          };
-          setKasalar(updatedKasalar);
-          localStorage.setItem('fx_cash_banks_list', JSON.stringify(updatedKasalar));
-        }
-      }
-
-      // Deduct stock quantities from Saha Teknisyen Deposu
-      data.kalemler.forEach(item => {
-        const pIndex = stoklar.findIndex(st => st.id === item.stokId);
-        if (pIndex !== -1) {
-          const updatedStok = [...stoklar];
-          updatedStok[pIndex] = {
-            ...updatedStok[pIndex],
-            currentQuantity: Math.max(0, updatedStok[pIndex].currentQuantity - item.miktar)
-          };
-          setStoklar(updatedStok);
-        }
-      });
+    } catch (err) {
+      alert('Servis kapatılırken hata oluştu (Tüm işlemler geri alındı): ' + (err instanceof Error ? err.message : 'Bilinmeyen hata'));
     }
-
-    setIsServisDetayOpen(false);
-    setSelectedServis(null);
   };
 
-  // Handler: Register Call Record
-  const handleKaydetArama = (
+  // Handler: Register Call Record (Atomic Call + Service Ticket + Notification)
+  const handleKaydetArama = async (
     arama: Omit<CagriAramaKaydi, 'id'>, 
     yeniServis?: Omit<ServisFisi, 'id'>,
     bildirim?: Omit<ServisBildirim, 'id'>
   ) => {
-    const activeBranchToSet = selectedBranchId === 'all' ? (branches[0]?.id || 'b1111111-1111-1111-1111-111111111111') : selectedBranchId;
-    const callId = `call-${Date.now()}`;
+    try {
+      const activeBranchToSet = selectedBranchId === 'all' ? (branches[0]?.id || 'b1111111-1111-1111-1111-111111111111') : selectedBranchId;
+      const res = await fxApi.saveCallRecordAtomic({
+        callData: arama,
+        serviceData: yeniServis,
+        notificationData: bildirim,
+        branchId: activeBranchToSet
+      });
 
-    let createdServisFisId = undefined;
-    if (yeniServis) {
-      const sId = `srv-${Date.now()}`;
-      const newService: ServisFisi = {
-        ...yeniServis,
-        id: sId,
-        servisNo: `SRV-2026-${String(servisFisleri.length + 1).padStart(4, '0')}`,
-        branchId: activeBranchToSet,
-        createdAt: new Date().toISOString()
-      };
-      const updatedServisler = [newService, ...servisFisleri];
-      setServisFisleri(updatedServisler);
-      updateStorage(STORAGE_KEYS.SERVIS_FISLERI, updatedServisler);
-      createdServisFisId = sId;
-    }
+      if (!res.success) throw new Error(res.message);
 
-    const newCall: CagriAramaKaydi = {
-      ...arama,
-      id: callId,
-      olusturulanServisFisId: createdServisFisId,
-      branchId: activeBranchToSet
-    };
+      // Refresh states
+      const [cRes, sRes, nRes] = await Promise.all([
+        fxApi.getCallRecords(),
+        fxApi.getServiceTickets(),
+        fxApi.getNotifications()
+      ]);
 
-    const updatedCalls = [newCall, ...cagriKayitlari];
-    setCagriKayitlari(updatedCalls);
-    updateStorage(STORAGE_KEYS.CAGRI_KAYITLARI, updatedCalls);
+      if (cRes.success) setCagriKayitlari(cRes.data);
+      if (sRes.success) setServisFisleri(sRes.data);
+      if (nRes.success) setBildirimler(nRes.data);
 
-    // If we have notification trigger
-    if (bildirim) {
-      const newNotif: ServisBildirim = {
-        ...bildirim,
-        id: `notif-${Date.now()}`,
-        servisId: createdServisFisId,
-        branchId: activeBranchToSet,
-        olusturmaTarihi: new Date().toISOString()
-      };
-      const updatedNotifs = [newNotif, ...bildirimler];
-      setBildirimler(updatedNotifs);
-      updateStorage(STORAGE_KEYS.BILDIRIMLER, updatedNotifs);
-
-      if (bildirim.telefon) {
+      if (bildirim && bildirim.telefon) {
         const sanitizedPhone = bildirim.telefon.replace(/\D/g, '');
         const encodedMsg = encodeURIComponent(bildirim.mesaj);
         window.open(`https://api.whatsapp.com/send?phone=${sanitizedPhone}&text=${encodedMsg}`, '_blank');
       }
-    }
 
-    setIsCagriKayitOpen(false);
-    setSelectedCihaz(null);
+      setIsCagriKayitOpen(false);
+      setSelectedCihaz(null);
+    } catch (err) {
+      alert('Çağrı kaydı oluşturulamadı (İşlemler geri alındı): ' + (err instanceof Error ? err.message : 'Bilinmeyen hata'));
+    }
   };
 
-  // Handler: Create or Update Customer Device
-  const handleKaydetCihaz = (cihazData: Omit<MusteriCihazi, 'id'>, editId?: string) => {
-    if (editId) {
-      // Update existing device
-      const updated = cihazlar.map(c => {
-        if (c.id === editId) {
-          return {
-            ...c,
-            ...cihazData,
-            id: editId
-          };
-        }
-        return c;
-      });
-      setCihazlar(updated);
-      updateStorage(STORAGE_KEYS.CIHAZLAR, updated);
-    } else {
-      // Create new device
+  // Handler: Create or Update Customer Device (Atomic Device + Open Tickets + Contact Sync)
+  const handleKaydetCihaz = async (cihazData: Omit<MusteriCihazi, 'id'>, editId?: string) => {
+    try {
       const activeBranchToSet = selectedBranchId === 'all' ? (branches[0]?.id || 'b1111111-1111-1111-1111-111111111111') : selectedBranchId;
-      const newDevice: MusteriCihazi = {
-        ...cihazData,
-        id: `cihaz-${Date.now()}`,
+      const res = await fxApi.saveDeviceAtomic({
+        deviceData: { ...cihazData, branchId: activeBranchToSet },
+        editId,
         branchId: activeBranchToSet
-      };
-      const updated = [newDevice, ...cihazlar];
-      setCihazlar(updated);
-      updateStorage(STORAGE_KEYS.CIHAZLAR, updated);
+      });
+
+      if (!res.success) {
+        throw new Error(res.message || 'Cihaz kaydedilemedi.');
+      }
+
+      // Reload all related states atomically
+      const [dRes, sRes, cRes] = await Promise.all([
+        fxApi.getDevices(),
+        fxApi.getServiceTickets(),
+        fxApi.getContacts()
+      ]);
+
+      if (dRes.success) setCihazlar(dRes.data);
+      if (sRes.success) setServisFisleri(sRes.data);
+      if (cRes.success) setCariler(cRes.data.map(mapContactToCari));
+
+      setIsCihazTanimOpen(false);
+      setEditingCihaz(null);
+    } catch (err) {
+      alert('Cihaz kaydedilirken hata oluştu (İşlemler geri alındı): ' + (err instanceof Error ? err.message : 'Bilinmeyen hata'));
     }
-    setIsCihazTanimOpen(false);
-    setEditingCihaz(null);
   };
 
   const handleDeleteCihaz = (cihazId: string) => {
@@ -1036,11 +903,39 @@ export function ServisManagement() {
     window.open(`https://api.whatsapp.com/send?phone=${sanitizedPhone}&text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  // Handler: Update Device Service Type directly from Table
+  // Handler: Update Device Service Type directly from Table (Atomic Device + Service Ticket Sync)
   const handleUpdateCihazServisTuru = (cihazId: string, newServisTuru: string) => {
-    const updated = cihazlar.map(c => c.id === cihazId ? { ...c, servisTuru: newServisTuru } : c);
-    setCihazlar(updated);
-    updateStorage(STORAGE_KEYS.CIHAZLAR, updated);
+    const prevDevices = [...cihazlar];
+    const prevServisler = [...servisFisleri];
+
+    try {
+      const norm = getServiceTypeLabel(newServisTuru);
+      const sTipi = normalizeServiceType(newServisTuru);
+
+      const updated = cihazlar.map(c => c.id === cihazId ? { ...c, servisTuru: norm } : c);
+      setCihazlar(updated);
+      updateStorage(STORAGE_KEYS.CIHAZLAR, updated);
+
+      // Sync any open/pending service tickets for this device
+      const updatedServisler = servisFisleri.map(s => {
+        if (s.cihazId === cihazId && (s.durum === 'RANDEVU_PLANLANDI' || s.durum === 'YOLDA_SAHADA' || s.durum === 'BEKLEMEDE')) {
+          return {
+            ...s,
+            servisTuru: norm,
+            servisTipi: sTipi
+          };
+        }
+        return s;
+      });
+      setServisFisleri(updatedServisler);
+      updateStorage(STORAGE_KEYS.SERVIS_FISLERI, updatedServisler);
+    } catch (err) {
+      setCihazlar(prevDevices);
+      setServisFisleri(prevServisler);
+      updateStorage(STORAGE_KEYS.CIHAZLAR, prevDevices);
+      updateStorage(STORAGE_KEYS.SERVIS_FISLERI, prevServisler);
+      alert('Cihaz servis türü güncellenirken hata oluştu (Geri alındı): ' + (err instanceof Error ? err.message : 'Bilinmeyen hata'));
+    }
   };
 
   // EXPORT UTILS
@@ -1093,6 +988,269 @@ export function ServisManagement() {
     doc.save(`Filtrex_Servis_Raporu_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
+  // AG Grid Column Definitions for Servisler Listesi
+  const columnsServisDefs = useMemo<ColDef<ServisFisi>[]>(() => [
+    {
+      field: 'servisNo',
+      headerName: 'Servis No & Tarih',
+      minWidth: 160,
+      width: 170,
+      cellRenderer: (params: ICellRendererParams<ServisFisi>) => {
+        const data = params.data;
+        if (!data) return null;
+        return (
+          <div className="flex flex-col justify-center py-1">
+            <span 
+              onClick={() => {
+                setEditingServis(data);
+                setIsModalCreateEmpty(false);
+                setIsYeniServisOpen(true);
+              }}
+              className="font-mono font-black text-xs text-indigo-700 hover:text-indigo-900 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/80 w-fit cursor-pointer tracking-tight"
+            >
+              {data.servisNo}
+            </span>
+            <span className="text-[10px] text-slate-500 font-medium mt-0.5 flex items-center gap-1">
+              <Calendar className="w-2.5 h-2.5 text-slate-400" />
+              {data.randevuTarihi || (data.createdAt ? data.createdAt.slice(0, 10) : '-')}
+            </span>
+          </div>
+        );
+      }
+    },
+    {
+      field: 'cariTitle',
+      headerName: 'Cari Ünvan',
+      minWidth: 220,
+      flex: 1.5,
+      cellRenderer: (params: ICellRendererParams<ServisFisi>) => {
+        const data = params.data;
+        if (!data) return null;
+        return (
+          <div className="flex flex-col justify-center py-1">
+            <span 
+              onClick={() => {
+                setEditingServis(data);
+                setIsModalCreateEmpty(false);
+                setIsYeniServisOpen(true);
+              }}
+              className="font-bold text-slate-900 text-xs hover:text-indigo-600 transition-colors cursor-pointer truncate"
+              title={data.cariTitle}
+            >
+              {data.cariTitle}
+            </span>
+            <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
+              {data.yetkili && <span className="text-slate-700 font-semibold">{data.yetkili}</span>}
+              {data.yetkili && <span>&bull;</span>}
+              <span className="truncate">{data.il || 'İzmir'} / {data.ilce || ''}</span>
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      field: 'servisTipi',
+      headerName: 'Servis Türü',
+      minWidth: 165,
+      width: 175,
+      cellRenderer: (params: ICellRendererParams<ServisFisi>) => {
+        const row = params.data;
+        if (!row) return null;
+        const norm = normalizeServiceType(row.servisTipi || row.servisTuru);
+        const colors = SERVIS_TIPI_COLORS[norm];
+        const label = SERVIS_TIPI_LABELS[norm];
+        return (
+          <div className="flex items-center h-full">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border ${colors.bg} ${colors.text} ${colors.border} truncate`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${colors.dot} shrink-0`} />
+              {label}
+            </span>
+          </div>
+        );
+      }
+    },
+    {
+      field: 'cihazAdi',
+      headerName: 'Cihaz & Seri No',
+      minWidth: 180,
+      width: 190,
+      cellRenderer: (params: ICellRendererParams<ServisFisi>) => {
+        const data = params.data;
+        if (!data) return null;
+        return (
+          <div className="flex flex-col justify-center py-1">
+            <span className="text-xs font-semibold text-slate-800 flex items-center gap-1 truncate">
+              <Cpu className="w-3 h-3 text-indigo-500 shrink-0" />
+              {data.cihazAdi || 'Arıtma Cihazı'}
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
+              SN: <strong className="text-slate-600">{data.seriNo || '-'}</strong>
+            </span>
+          </div>
+        );
+      }
+    },
+    {
+      field: 'bildirilenAriza',
+      headerName: 'Bildirilen İş / Arıza Notu',
+      minWidth: 200,
+      flex: 1.2,
+      cellRenderer: (params: ICellRendererParams<ServisFisi>) => {
+        const data = params.data;
+        if (!data) return null;
+        return (
+          <div className="flex items-center h-full pr-2">
+            <p className="text-xs text-slate-600 truncate font-medium" title={data.bildirilenAriza || data.teknisyenNotu || '-'}>
+              {data.bildirilenAriza || data.teknisyenNotu || 'Standart periyodik bakım talebi'}
+            </p>
+          </div>
+        );
+      }
+    },
+    {
+      field: 'atananTeknisyenAdi',
+      headerName: 'Atanan Teknisyen',
+      minWidth: 160,
+      width: 170,
+      cellRenderer: (params: ICellRendererParams<ServisFisi>) => {
+        const data = params.data;
+        if (!data) return null;
+        return (
+          <div className="flex flex-col justify-center py-1">
+            <span className="text-xs font-bold text-slate-800 flex items-center gap-1 truncate">
+              <Users className="w-3 h-3 text-indigo-500 shrink-0" />
+              {data.atananTeknisyenAdi || 'Atama Bekliyor'}
+            </span>
+            {data.teknisyenDepoAdi && (
+              <span className="text-[10px] text-slate-400 truncate mt-0.5">
+                {data.teknisyenDepoAdi}
+              </span>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      field: 'durum',
+      headerName: 'Durum',
+      minWidth: 140,
+      width: 150,
+      cellRenderer: (params: ICellRendererParams<ServisFisi>) => {
+        const row = params.data;
+        if (!row) return null;
+        let badgeStyle = 'bg-slate-50 text-slate-700 border-slate-200';
+        let text = 'Planlandı';
+        if (row.durum === 'RANDEVU_PLANLANDI') {
+          badgeStyle = 'bg-sky-50 text-sky-800 border-sky-200';
+          text = 'Randevu Alındı';
+        } else if (row.durum === 'YOLDA_SAHADA') {
+          badgeStyle = 'bg-amber-50 text-amber-800 border-amber-250 animate-pulse';
+          text = 'Yolda / Sahada';
+        } else if (row.durum === 'TAMAMLANDI_KAPATILDI') {
+          badgeStyle = 'bg-emerald-50 text-emerald-800 border-emerald-250';
+          text = 'Tamamlandı';
+        } else if (row.durum === 'FATURALANDI') {
+          badgeStyle = 'bg-indigo-50 text-indigo-800 border-indigo-200';
+          text = 'Faturalandı';
+        } else if (row.durum === 'IPTAL_EDILDI') {
+          badgeStyle = 'bg-rose-50 text-rose-800 border-rose-200';
+          text = 'İptal Edildi';
+        }
+        return (
+          <div className="flex items-center h-full">
+            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${badgeStyle}`}>
+              {text}
+            </span>
+          </div>
+        );
+      }
+    },
+    {
+      field: 'tahsilatTutari',
+      headerName: 'Tahsilat / Tutar',
+      minWidth: 130,
+      width: 140,
+      cellRenderer: (params: ICellRendererParams<ServisFisi>) => {
+        const data = params.data;
+        if (!data) return null;
+        return (
+          <div className="flex flex-col justify-center py-1">
+            <span className="font-mono font-bold text-xs text-slate-900">
+              ₺{(data.tahsilatTutari || 0).toLocaleString('tr-TR')}
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">
+              {data.odemeTuru || 'Ödeme Bekliyor'}
+            </span>
+          </div>
+        );
+      }
+    },
+    {
+      colId: 'actions',
+      headerName: 'İşlemler',
+      minWidth: 170,
+      width: 180,
+      pinned: 'right',
+      cellRenderer: (params: ICellRendererParams<ServisFisi>) => {
+        const data = params.data;
+        if (!data) return null;
+        return (
+          <div className="flex items-center gap-1.5 h-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => {
+                setEditingServis(data);
+                setIsModalCreateEmpty(false);
+                setIsYeniServisOpen(true);
+              }}
+              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+              title="Servis Fişini Düzenle"
+            >
+              <Edit2 className="w-3 h-3" />
+              <span>Düzenle</span>
+            </button>
+            <button
+              onClick={() => {
+                setSelectedServis(data);
+                setIsServisDetayOpen(true);
+              }}
+              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+              title="Yazdır / Detay Görüntüle"
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        );
+      }
+    }
+  ], []);
+
+  const defaultServisColDef = useMemo<ColDef>(() => ({
+    sortable: true,
+    filter: true,
+    resizable: true,
+    floatingFilter: false,
+  }), []);
+
+  const rowSelectionServis = useMemo<RowSelectionOptions<ServisFisi>>(
+    () => ({
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
+      enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
+    }),
+    []
+  );
+
   // Define Columns for grids
   const columnsServis = [
     { field: 'servisNo', headerName: 'Servis No', width: 140, renderCell: (row: ServisFisi) => (
@@ -1113,27 +1271,12 @@ export function ServisManagement() {
     { field: 'randevuTarihi', headerName: 'Tarih', width: 110, renderCell: (row: ServisFisi) => (
       <span className="font-medium">{row.randevuTarihi}</span>
     )},
-    { field: 'servisTipi', headerName: 'Servis Türü', width: 140, renderCell: (row: ServisFisi) => {
-      let badgeStyle = 'bg-slate-50 text-slate-700 border-slate-200';
-      let text = row.servisTipi || 'Arıza Onarım';
-      if (row.servisTipi === 'PERIYODIK_BAKIM') {
-        badgeStyle = 'bg-teal-50 text-teal-800 border-teal-200';
-        text = 'Periyodik Bakım';
-      } else if (row.servisTipi === 'FILTRE_DEGISIMI') {
-        badgeStyle = 'bg-indigo-50 text-indigo-800 border-indigo-200';
-        text = 'Filtre Değişimi';
-      } else if (row.servisTipi === 'MONTAJ_KURULUM') {
-        badgeStyle = 'bg-purple-50 text-purple-800 border-purple-200';
-        text = 'Montaj / Kurulum';
-      } else if (row.servisTipi === 'KESIF_DURUM_TESPITI') {
-        badgeStyle = 'bg-blue-50 text-blue-800 border-blue-200';
-        text = 'Keşif / Tespit';
-      } else if (row.servisTipi === 'ARIZA_ONARIM') {
-        badgeStyle = 'bg-rose-50 text-rose-800 border-rose-200';
-        text = 'Arıza Onarım';
-      }
+    { field: 'servisTipi', headerName: 'Servis Türü', width: 160, renderCell: (row: ServisFisi) => {
+      const norm = normalizeServiceType(row.servisTipi || row.servisTuru);
+      const colors = SERVIS_TIPI_COLORS[norm];
+      const text = SERVIS_TIPI_LABELS[norm];
       return (
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${badgeStyle}`}>
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${colors.bg} ${colors.text} ${colors.border}`}>
           {text}
         </span>
       );
@@ -1178,18 +1321,19 @@ export function ServisManagement() {
             setIsYeniServisOpen(true);
           }}
           className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold shadow-2xs cursor-pointer transition-colors flex items-center gap-1"
-          title="Servis kaydını düzenle"
+          title="Servis kaydını düzenle / detaylarını incele"
         >
           <Edit2 className="w-3 h-3" />
           Düzenle
         </button>
         <button
           onClick={() => {
-            setSelectedServis(row);
-            setIsServisDetayOpen(true);
+            setEditingServis(row);
+            setIsModalCreateEmpty(false);
+            setIsYeniServisOpen(true);
           }}
           className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-[11px] font-bold shadow-2xs hover:border-slate-300 cursor-pointer transition-colors"
-          title="Detay / Kapat"
+          title="Servis kaydı detaylarını görüntüle ve düzenle"
         >
           Detay
         </button>
@@ -1268,18 +1412,34 @@ export function ServisManagement() {
         {row.ozelNotlar || '-'}
       </span>
     )},
-    { field: 'islemler', headerName: 'İşlemler', width: 110, align: 'center' as const, renderCell: (row: MusteriCihazi) => (
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setEditingCihaz(row);
-          setIsCihazTanimOpen(true);
-        }}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 border border-indigo-200 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
-      >
-        <Edit2 className="w-3.5 h-3.5" />
-        Düzenle
-      </button>
+    { field: 'islemler', headerName: 'İşlemler', width: 145, align: 'center' as const, renderCell: (row: MusteriCihazi) => (
+      <div className="flex items-center gap-1.5 justify-center">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedCihaz(row);
+            setEditingServis(null);
+            setIsModalCreateEmpty(false);
+            setIsYeniServisOpen(true);
+          }}
+          className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 border border-indigo-200 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+          title="Bu cihaza Servis / İş Emri Aç"
+        >
+          <Wrench className="w-3.5 h-3.5" />
+          Servis Aç
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingCihaz(row);
+            setIsCihazTanimOpen(true);
+          }}
+          className="inline-flex items-center p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+          title="Cihaz Kartını Düzenle"
+        >
+          <Edit2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
     )}
   ];
 
@@ -1403,7 +1563,7 @@ export function ServisManagement() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="block text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 tracking-wider">İş Emri</span>
+            <span className="block text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 tracking-wider">Açılan Servisler</span>
             <span className="block text-lg sm:text-xl font-black text-slate-800 mt-0.5 sm:mt-1">{stats.totalJobs}</span>
             <span className="text-[9px] sm:text-[10px] font-semibold text-emerald-600 flex items-center gap-0.5 mt-1 sm:mt-1.5">
               <TrendingUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {stats.completedJobs} Tamam
@@ -1462,7 +1622,7 @@ export function ServisManagement() {
             }`}
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span className="whitespace-nowrap">Servis & Bakım ({filteredCihazlar.length})</span>
+            <span className="whitespace-nowrap">Müşteri & Bakım Takip ({filteredCihazlar.length})</span>
           </button>
 
           <button
@@ -1474,7 +1634,7 @@ export function ServisManagement() {
             }`}
           >
             <Wrench className="w-3.5 h-3.5" />
-            <span className="whitespace-nowrap">İş Emirleri ({filteredServisler.length})</span>
+            <span className="whitespace-nowrap">Servisler ({filteredServisler.length})</span>
           </button>
 
           <button
@@ -1498,7 +1658,7 @@ export function ServisManagement() {
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
-            <span className="whitespace-nowrap">Cihaz Kartları ({filteredCihazlar.length})</span>
+            <span className="whitespace-nowrap">Cihaz & Model Bilgisi ({filteredCihazlar.length})</span>
           </button>
 
           <button
@@ -1539,32 +1699,196 @@ export function ServisManagement() {
       {/* 4. ACTIVE VIEW RENDERING */}
       <div className="w-full">
         {activeTab === 'isEmirleri' && (
-          <div className="flex flex-col gap-4">
-            <AgDataGrid
-              id="grid-is-emirleri"
-              data={filteredServisler}
-              columns={columnsServis}
-              keyField="id"
-              showSearch={true}
-              onRowClick={(row: ServisFisi) => {
-                setEditingServis(row);
-                setIsModalCreateEmpty(false);
-                setIsYeniServisOpen(true);
-              }}
-              toolbarLeftContent={
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">İş Emirleri Listesi</span>
-                  {selectedBranchId === 'all' && (
-                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-md border border-indigo-100">
-                      Tüm Şubeler Konsolide
-                    </span>
-                  )}
-                  <span className="text-[11px] text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/60 font-medium">
-                    💡 Düzenlemek için satıra tıklayınız
-                  </span>
+          <div className="flex flex-col gap-3.5">
+            {/* Filter Toolbar matching Personel Management AG Grid */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-xs">
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 flex-wrap">
+                  {/* Search input */}
+                  <div className="relative flex-1 min-w-[240px] max-w-md">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Servis no, müşteri, cihaz, teknisyen, telefon ara..."
+                      value={servisSearchText}
+                      onChange={e => setServisSearchText(e.target.value)}
+                      className="w-full bg-white border border-slate-300 hover:border-slate-400 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                    />
+                    {servisSearchText && (
+                      <button
+                        type="button"
+                        onClick={() => setServisSearchText('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs w-5 h-5 flex items-center justify-center rounded-full hover:bg-slate-100"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Status Filter */}
+                  <select
+                    value={servisDurumFilter}
+                    onChange={e => setServisDurumFilter(e.target.value)}
+                    className="bg-white border border-slate-300 hover:border-slate-400 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="ALL">Servis Durumu (Tümü)</option>
+                    <option value="RANDEVU_PLANLANDI">Randevu Planlandı</option>
+                    <option value="YOLDA_SAHADA">Yolda / Sahada</option>
+                    <option value="BEKLEMEDE">Beklemede</option>
+                    <option value="TAMAMLANDI_KAPATILDI">Tamamlandı</option>
+                    <option value="FATURALANDI">Faturalandı</option>
+                    <option value="IPTAL_EDILDI">İptal Edildi</option>
+                  </select>
+
+                  {/* Service Type Filter */}
+                  <select
+                    value={servisTuruFilter}
+                    onChange={e => setServisTuruFilter(e.target.value)}
+                    className="bg-white border border-slate-300 hover:border-slate-400 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer font-medium"
+                  >
+                    <option value="ALL">Servis Türü (Tümü)</option>
+                    <option value="PERIYODIK_BAKIM">Periyodik Bakım & Filtre Değişimi</option>
+                    <option value="FILTRE_DEGISIMI">Filtre Değişimi</option>
+                    <option value="ARIZA_ONARIM">Arıza & Onarım</option>
+                    <option value="MONTAJ_KURULUM">Montaj & Yeni Kurulum</option>
+                    <option value="KESIF_DURUM_TESPITI">Keşif & Su Analizi</option>
+                  </select>
+
+                  {/* Technician Filter */}
+                  <select
+                    value={servisTeknisyenFilter}
+                    onChange={e => setServisTeknisyenFilter(e.target.value)}
+                    className="bg-white border border-slate-300 hover:border-slate-400 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="ALL">Teknisyen (Tümü)</option>
+                    {distinctTeknisyenler.map(tek => (
+                      <option key={tek} value={tek}>{tek}</option>
+                    ))}
+                  </select>
                 </div>
-              }
-            />
+
+                {/* Right toolbar buttons */}
+                <div className="flex items-center gap-2">
+                  {(servisDurumFilter !== 'ALL' || servisTuruFilter !== 'ALL' || servisTeknisyenFilter !== 'ALL' || servisSearchText) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setServisDurumFilter('ALL');
+                        setServisTuruFilter('ALL');
+                        setServisTeknisyenFilter('ALL');
+                        setServisSearchText('');
+                      }}
+                      className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg border border-rose-200 flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Temizle
+                    </button>
+                  )}
+
+                  <AgGridSidebarToggleBtn
+                    isOpen={isServisSidebarOpen}
+                    onToggle={() => setIsServisSidebarOpen(!isServisSidebarOpen)}
+                    gridApi={servisGridApi}
+                    buttonRef={servisSidebarButtonRef}
+                  />
+
+                  <button
+                    onClick={() => {
+                      setEditingServis(null);
+                      setSelectedCihaz(null);
+                      setIsModalCreateEmpty(true);
+                      setIsYeniServisOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Yeni Servis Kaydı
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* AG Grid Area & Column Sidebar */}
+            <div className="flex gap-4 items-start relative h-[600px]">
+              <div
+                className={`bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden transition-all duration-300 ${
+                  isServisSidebarOpen ? 'flex-1' : 'w-full'
+                }`}
+              >
+                <div style={{ height: '600px', width: '100%' }}>
+                  <AgGridReact<ServisFisi>
+                    theme={appTheme}
+                    ref={servisGridRef}
+                    localeText={AG_GRID_LOCALE_TR}
+                    rowData={filteredServislerForGrid}
+                    columnDefs={columnsServisDefs}
+                    defaultColDef={defaultServisColDef}
+                    rowSelection={rowSelectionServis}
+                    pagination={true}
+                    paginationPageSize={15}
+                    paginationPageSizeSelector={[10, 15, 25, 50, 100]}
+                    onGridReady={(params) => {
+                      setServisGridApi(params.api);
+                      const saved = localStorage.getItem('fx_servis_list_grid_state');
+                      if (saved) {
+                        try {
+                          const parsed = JSON.parse(saved);
+                          if (Array.isArray(parsed)) {
+                            const cleanParsed = parsed.map((col: any) => {
+                              if (col.colId === 'servisNo') return { ...col, pinned: null };
+                              return col;
+                            });
+                            params.api.applyColumnState({ state: cleanParsed, applyOrder: true });
+                          }
+                        } catch (e) {
+                          console.error('Servis grid state parse error:', e);
+                        }
+                      }
+                    }}
+                    onColumnMoved={() => {
+                      if (servisGridRef.current?.api) {
+                        const state = servisGridRef.current.api.getColumnState();
+                        localStorage.setItem('fx_servis_list_grid_state', JSON.stringify(state));
+                      }
+                    }}
+                    onColumnVisible={() => {
+                      if (servisGridRef.current?.api) {
+                        const state = servisGridRef.current.api.getColumnState();
+                        localStorage.setItem('fx_servis_list_grid_state', JSON.stringify(state));
+                      }
+                    }}
+                    onColumnPinned={() => {
+                      if (servisGridRef.current?.api) {
+                        const state = servisGridRef.current.api.getColumnState();
+                        localStorage.setItem('fx_servis_list_grid_state', JSON.stringify(state));
+                      }
+                    }}
+                    onRowClicked={(event) => {
+                      if (event.data) {
+                        setEditingServis(event.data);
+                        setIsModalCreateEmpty(false);
+                        setIsYeniServisOpen(true);
+                      }
+                    }}
+                    rowHeight={64}
+                    headerHeight={40}
+                  />
+                </div>
+              </div>
+
+              {isServisSidebarOpen && (
+                <AgGridColumnSidebar
+                  onClose={() => setIsServisSidebarOpen(false)}
+                  gridApi={servisGridApi}
+                  onSaveGridState={() => {
+                    if (servisGridRef.current?.api) {
+                      const state = servisGridRef.current.api.getColumnState();
+                      localStorage.setItem('fx_servis_list_grid_state', JSON.stringify(state));
+                    }
+                  }}
+                />
+              )}
+            </div>
           </div>
         )}
 
@@ -1575,7 +1899,12 @@ export function ServisManagement() {
               servisler={filteredServisler}
               cagriAramalari={filteredCagriKayitlari}
               cariler={cariler}
-              todayDateStr="2026-03-01"
+              onOpenYeniServisEmpty={() => {
+                setEditingServis(null);
+                setSelectedCihaz(null);
+                setIsModalCreateEmpty(true);
+                setIsYeniServisOpen(true);
+              }}
               onOpenYeniServis={(device) => {
                 const existingActiveSlip = filteredServisler.find(s => 
                   s.cihazId === device.id && 
@@ -1584,7 +1913,41 @@ export function ServisManagement() {
                 if (existingActiveSlip) {
                   setEditingServis(existingActiveSlip);
                 } else {
-                  setEditingServis(null);
+                  const anySlip = filteredServisler.find(s => s.cihazId === device.id);
+                  if (anySlip) {
+                    setEditingServis(anySlip);
+                  } else {
+                    const draftSlip: ServisFisi = {
+                      id: `srv-${Date.now()}`,
+                      servisNo: `SRV-2026-${String(servisFisleri.length + 1).padStart(4, '0')}`,
+                      cihazId: device.id,
+                      cihazAdi: device.cihazAdi,
+                      seriNo: device.seriNo || '',
+                      cariId: device.cariId,
+                      cariTitle: device.cariTitle || '',
+                      adresTipi: device.adresTipi || 'Merkez / Fatura Adresi',
+                      il: device.il || 'İzmir',
+                      ilce: device.ilce || '',
+                      mahalle: device.mahalle || '',
+                      acikAdres: device.acikAdres || '',
+                      telefon: device.yetkiliTelefon || '',
+                      yetkili: device.yetkiliKisi || '',
+                      randevuTarihi: device.gelecekBakimTarihi ? `${device.gelecekBakimTarihi} 11:00` : '',
+                      atananTeknisyenId: '',
+                      atananTeknisyenAdi: '',
+                      teknisyenDepoId: '',
+                      teknisyenDepoAdi: '',
+                      durum: 'RANDEVU_PLANLANDI',
+                      odemeTuru: 'ACIK_HESAP',
+                      tahsilatTutari: 0,
+                      kalemler: [],
+                      createdAt: new Date().toISOString(),
+                      servisTipi: normalizeServiceType(device.servisTuru),
+                      servisTuru: getServiceTypeLabel(device.servisTuru || 'PERIYODIK_BAKIM'),
+                      bildirilenAriza: `Periyodik bakım ve filtre kontrolleri.`
+                    };
+                    setEditingServis(draftSlip);
+                  }
                 }
                 setSelectedCihaz(device);
                 setIsModalCreateEmpty(false);
@@ -1609,6 +1972,10 @@ export function ServisManagement() {
                 setCagriMerkeziSearchTerm(cariTitle);
                 setActiveTab('cagriMerkezi');
               }}
+              onEditCihaz={(device) => {
+                setEditingCihaz(device);
+                setIsCihazTanimOpen(true);
+              }}
             />
           </div>
         )}
@@ -1621,17 +1988,32 @@ export function ServisManagement() {
             keyField="id"
             showSearch={true}
             onRowClick={(row: MusteriCihazi) => {
-              setEditingCihaz(row);
-              setIsCihazTanimOpen(true);
+              setSelectedCihaz(row);
+              setEditingServis(null);
+              setIsModalCreateEmpty(false);
+              setIsYeniServisOpen(true);
             }}
             toolbarLeftContent={
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100">
-                  Müşteri Cihaz Kartları
+                  Cihaz & Model Bilgisi
                 </span>
                 <span className="text-[10px] text-slate-400">({filteredCihazlar.length} Cihaz)</span>
-                <span className="text-[11px] text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/60 font-medium">
-                  💡 Düzenlemek için satıra tıklayınız
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCihaz(null);
+                    setEditingServis(null);
+                    setIsModalCreateEmpty(true);
+                    setIsYeniServisOpen(true);
+                  }}
+                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  + Yeni Cihaz & Model Ekle (Yeni Servis Kaydı İle)
+                </button>
+                <span className="text-[11px] text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-200/60 font-medium hidden md:inline">
+                  💡 Yeni cihaz & model kayıtları ve iş emirleri "Yeni Servis Kaydı Oluştur" formu üzerinden eklenir
                 </span>
               </div>
             }
@@ -1684,6 +2066,7 @@ export function ServisManagement() {
             setIsYeniServisOpen(false);
             setEditingServis(null);
             setSelectedCihaz(null);
+            setIsModalCreateEmpty(true);
           }}
           cariler={cariler}
           cihazlar={cihazlar}
@@ -1695,6 +2078,11 @@ export function ServisManagement() {
           initialCihaz={selectedCihaz}
           editingServis={editingServis}
           isCreateEmpty={isModalCreateEmpty}
+          onOpenKapatmaModal={(servis) => {
+            setIsYeniServisOpen(false);
+            setSelectedServis(servis);
+            setIsServisDetayOpen(true);
+          }}
           onKaydetServis={handleKaydetYeniServis}
         />
       )}

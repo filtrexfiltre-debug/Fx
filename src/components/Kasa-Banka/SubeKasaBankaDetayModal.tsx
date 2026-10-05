@@ -7,7 +7,7 @@ import {
   ModuleRegistry,
   AllCommunityModule,
   ValidationModule,
-  
+  RowSelectionOptions,
 } from 'ag-grid-community';
 import { AG_GRID_LOCALE_TR } from '../../lib/agGridLocaleTR';
 import {
@@ -127,6 +127,26 @@ export const SubeKasaBankaDetayModal: React.FC<SubeKasaBankaDetayModalProps> = (
       },
     },
   ], []);
+
+  const rowSelection = useMemo<RowSelectionOptions<PaymentMovement>>(
+    () => ({
+      mode: 'multiRow',
+      checkboxes: true,
+      headerCheckbox: true,
+      enableClickSelection: true,
+      selectAll: 'all',
+      selectionColumnDef: {
+        pinned: 'left',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        resizable: false,
+        sortable: false,
+        suppressColumnsToolPanel: true,
+      },
+    }),
+    []
+  );
 
   if (!isOpen || !branch) return null;
 
@@ -458,6 +478,7 @@ export const SubeKasaBankaDetayModal: React.FC<SubeKasaBankaDetayModalProps> = (
                 paginationPageSizeSelector={[10, 20, 50]}
                 rowHeight={40}
                 headerHeight={38}
+                rowSelection={rowSelection}
                 animateRows={true}
                 enableCellTextSelection={true}
               />

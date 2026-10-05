@@ -1,3 +1,7 @@
+export type ServisOdemeTuru = 'NAKIT' | 'ACIK_HESAP';
+export type ServisDurumu = 'RANDEVU_PLANLANDI' | 'YOLDA_SAHADA' | 'TAMAMLANDI_KAPATILDI' | 'FATURALANDI' | 'IPTAL';
+export type ServisTipi = 'PERIYODIK_BAKIM' | 'FILTRE_DEGISIMI' | 'ARIZA_ONARIM' | 'MONTAJ_KURULUM' | 'KESIF_DURUM_TESPITI';
+
 export interface Branch {
   id: string;
   code: string;
@@ -213,15 +217,23 @@ export interface Product {
   openingStockQuantity: number; // Açılış Stok Miktarı (Adet)
   descriptionNotes?: string; // Ürün Açıklaması & Notlar
   
-  // Geriye dönük uyumluluk alanları
+  // Geriye dönük uyumluluk ve Modüller arası senkronizasyon alanları
   code?: string;
   barcode?: string;
   unit?: string;
+  category?: string;
+  brand?: string;
   vatRate?: number;
   salePrice?: number;
+  sellPrice?: number;
+  buyPrice?: number;
+  sellingPrice?: number;
+  currentStock?: number;
+  currentQuantity?: number;
 
   createdAt?: string;
   updatedAt?: string;
+  isActive?: boolean;
 }
 
 export interface Warehouse {
