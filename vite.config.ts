@@ -1,7 +1,11 @@
+/// <reference types="node" />
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import {fileURLToPath} from 'url';
 import {defineConfig} from 'vite';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(() => {
   return {
@@ -11,10 +15,10 @@ export default defineConfig(() => {
       {
         name: 'dev-api-server',
         configureServer(server) {
-          server.middlewares.use((req, res, next) => {
+          server.middlewares.use((req, res, next: () => void) => {
             if (req.url === '/api/auth/login' && req.method === 'POST') {
               let body = '';
-              req.on('data', (chunk) => { body += chunk; });
+              req.on('data', (chunk: Buffer) => { body += chunk; });
               req.on('end', () => {
                 try {
                   const { email, password } = JSON.parse(body || '{}');
