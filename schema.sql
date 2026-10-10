@@ -514,6 +514,165 @@ CREATE INDEX IF NOT EXISTS idx_transfers_source_branch ON inter_branch_transfers
 CREATE INDEX IF NOT EXISTS idx_transfers_target_branch ON inter_branch_transfers(tenant_id, target_branch_id);
 CREATE INDEX IF NOT EXISTS idx_transfers_status ON inter_branch_transfers(tenant_id, status);
 
+-- ============================================================================
+-- 11. KİMLİK & YETKİLENDİRME (users, roles, permissions, user_roles, role_permissions)
+-- Tenant kapsamlı; soft-delete (deleted_at) kullanılır. branch_id NULL = tüm şubeler (global kullanıcı).
+-- server.cjs içindeki mevcut kullanıcılar (Patron / Şube Yöneticisi) bu yapıya roles.code ile eşlenir.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id UUID REFERENCES branches(id) ON DELETE RESTRICT,
+    email VARCHAR(255) NOT NULL,
+    full_name VARCHAR(150) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    password_salt VARCHAR(255),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT chk_users_email CHECK (email = lower(email))
+);
+
+-- Soft-delete edilmiş kayıtlar e-posta benzersizliğini bloklamaz
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_email ON users(tenant_id, email) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_users_tenant_branch ON users(tenant_id, branch_id);
+
+CREATE TABLE IF NOT EXISTS roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    code VARCHAR(50) NOT NULL, -- PATRON, SUBE_YONETICISI, MUHASEBE, DEPO ...
+    name VARCHAR(100) NOT NULL,
+    is_system BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_roles_tenant_code ON roles(tenant_id, code) WHERE deleted_at IS NULL;
+-- Bileşik FK hedefi: ilişki tablolarında rol/kullanıcı/izin tenant tutarlılığını garanti eder
+CREATE UNIQUE INDEX IF NOT EXISTS uq_roles_tenant_id ON roles(tenant_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_tenant_id ON users(tenant_id, id);
+
+-- İzinler global katalogdur (tenant'a ait değildir): modül.eylem biçiminde (invoice.create)
+CREATE TABLE IF NOT EXISTS permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(100) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
+    role_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, role_id),
+    FOREIGN KEY (tenant_id, user_id) REFERENCES users(tenant_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id, role_id) REFERENCES roles(tenant_id, id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_roles_tenant_role ON user_roles(tenant_id, role_id);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL,
+    permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (role_id, permission_id),
+    FOREIGN KEY (tenant_id, role_id) REFERENCES roles(tenant_id, id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_role_permissions_permission ON role_permissions(permission_id);
+
+-- ============================================================================
+-- 12. FİNANSAL İŞLEM DEFTERİ (financial_transactions) - APPEND-ONLY
+-- Tahsilat, ödeme, masraf, virman, maaş ve vergi hareketlerinin normalize defteri.
+-- Düzeltme = UPDATE/DELETE değil, reverses_transaction_id ile ters kayıt.
+--
+-- Mevcut tablolarla eşleme (davranış korunur, bu tablolar kaynak belge olarak kalır):
+--   Tahsilat/Ödeme  (receipts, UI: TAHSILAT/ODEME)  -> tx_type 'Collection' / 'Payment'
+--   Masraf          (operational_expenses)           -> 'Expense'
+--   Virman          (inter_branch_transfers)         -> 'Transfer' (kaynak şube 'Out', hedef şube 'In' iki satır)
+--   Maaş            (employees)                      -> 'Salary'
+--   Vergi           (tax_allocations)                -> 'Tax'
+--   customer_movements cari alt defteri olarak kalır; ledger kaydı source_type/source_id ile ona bağlanır.
+--   cashes_and_banks.balance önbellektir; gerçek kaynak bu defterdir.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS financial_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    tx_type VARCHAR(20) NOT NULL
+        CHECK (tx_type IN ('Collection', 'Payment', 'Expense', 'Transfer', 'Salary', 'Tax')),
+    direction VARCHAR(3) NOT NULL CHECK (direction IN ('In', 'Out')), -- Kasa/banka açısından giriş/çıkış
+    amount DECIMAL(18, 4) NOT NULL CHECK (amount > 0),
+    currency_code CHAR(3) NOT NULL DEFAULT 'TRY',
+    cash_bank_id UUID REFERENCES cashes_and_banks(id) ON DELETE RESTRICT,
+    contact_id UUID REFERENCES contacts(id) ON DELETE RESTRICT,
+    source_type VARCHAR(30), -- receipts, operational_expenses, inter_branch_transfers, employees, tax_allocations ...
+    source_id UUID,
+    reverses_transaction_id UUID REFERENCES financial_transactions(id) ON DELETE RESTRICT,
+    reference_number VARCHAR(50),
+    description TEXT,
+    transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fin_tx_tenant_branch_date ON financial_transactions(tenant_id, branch_id, transaction_date);
+CREATE INDEX IF NOT EXISTS idx_fin_tx_tenant_type_date ON financial_transactions(tenant_id, tx_type, transaction_date);
+CREATE INDEX IF NOT EXISTS idx_fin_tx_cash_bank ON financial_transactions(cash_bank_id, transaction_date);
+CREATE INDEX IF NOT EXISTS idx_fin_tx_contact ON financial_transactions(contact_id, transaction_date);
+CREATE INDEX IF NOT EXISTS idx_fin_tx_source ON financial_transactions(source_type, source_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_fin_tx_reverses ON financial_transactions(reverses_transaction_id) WHERE reverses_transaction_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION prevent_append_only_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION '% tablosu append-only''dir; % işlemi yapılamaz. Ters kayıt kullanın.', TG_TABLE_NAME, TG_OP;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_financial_transactions_append_only ON financial_transactions;
+CREATE TRIGGER trg_financial_transactions_append_only
+BEFORE UPDATE OR DELETE ON financial_transactions
+FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
+
+-- ============================================================================
+-- 13. DENETİM KAYDI (audit_logs) - APPEND-ONLY
+-- Create/Update/Delete eylemleri için eski/yeni anlık görüntüler ve istek bilgisi.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+    branch_id UUID REFERENCES branches(id) ON DELETE RESTRICT,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(10) NOT NULL CHECK (action IN ('Create', 'Update', 'Delete')),
+    entity_name VARCHAR(100) NOT NULL,
+    entity_id VARCHAR(64) NOT NULL,
+    old_values JSONB,
+    new_values JSONB,
+    ip_address INET,
+    user_agent VARCHAR(500),
+    request_id VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_created ON audit_logs(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_entity ON audit_logs(tenant_id, entity_name, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_branch ON audit_logs(tenant_id, branch_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id, created_at DESC);
+
+DROP TRIGGER IF EXISTS trg_audit_logs_append_only ON audit_logs;
+CREATE TRIGGER trg_audit_logs_append_only
+BEFORE UPDATE OR DELETE ON audit_logs
+FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
+
 -- Otomatik updated_at güncelleme tetikleyicisi
 CREATE OR REPLACE FUNCTION set_updated_at_timestamp()
 RETURNS TRIGGER AS $$
